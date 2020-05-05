@@ -1,49 +1,74 @@
 import torch
-import hyp
 import utils
 import numpy as np
 
-from torch.utils.tensorboard import SummaryWriter
-from models import QEDRewardMolecule, Agent
+# from torch.utils.tensorboard import SummaryWriter
+from torch_geometric.datasets import TUDataset
+from models.explainer import Counterfactual, Agent
+from config.explainer import Args, Path, Log, Elements
+from config import filter
 
-TENSORBOARD_LOG = True
-TB_LOG_PATH = "./runs/dqn/run2"
+Hyperparams = Args()
+
 episodes = 0
-iterations = 200000
-update_interval = 20
-batch_size = 128
-num_updates_per_it = 1
+
+dataset = TUDataset(
+    Path.data('Balanced-Tox21'),
+    name='Tox21_AhR_training',
+    pre_filter=filter
+)
+# molecule = dataset[145]
+molecule = dataset[0]
+molecule.batch = torch.zeros(
+    molecule.x.shape[0]
+).long()
+
+Log(f'Molecule: {utils.pyg_to_smiles(molecule)}')
+
+atoms_ = [
+    Elements(e).name
+    for e in np.unique(
+        [x.tolist().index(1) for x in molecule.x.numpy()]
+    )
+]
+
+Hyperparams.atom_types.sort()
+atoms_.sort()
+
+if not np.array_equal(atoms_, Hyperparams.atom_types):
+    Log("[Warn] The atom types that are being used to generate the molecule " +
+        "differ from the actual atoms composing the real molecule.")
+
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-environment = QEDRewardMolecule(
-    discount_factor=hyp.discount_factor,
-    atom_types=set(hyp.atom_types),
-    init_mol=hyp.start_molecule,
-    allow_removal=hyp.allow_removal,
-    allow_no_modification=hyp.allow_no_modification,
-    allow_bonds_between_rings=hyp.allow_bonds_between_rings,
-    allowed_ring_sizes=set(hyp.allowed_ring_sizes),
-    max_steps=hyp.max_steps_per_episode,
+environment = Counterfactual(
+    init_mol=utils.pyg_to_smiles(molecule),
+    discount_factor=Hyperparams.discount,
+    atom_types=set(Hyperparams.atom_types),
+    allow_removal=Hyperparams.allow_removal,
+    allow_no_modification=Hyperparams.allow_no_modification,
+    allow_bonds_between_rings=Hyperparams.allow_bonds_between_rings,
+    allowed_ring_sizes=set(Hyperparams.allowed_ring_sizes),
+    max_steps=Hyperparams.max_steps_per_episode,
+    base_molecule=molecule,
+    counterfactual_class=(1 - molecule.y.item()),
+    weight_sim=0.2
 )
 
 # DQN Inputs and Outputs:
 # input: appended action (fingerprint_length + 1) .
 # Output size is (1).
 
-agent = Agent(hyp.fingerprint_length + 1, 1, device)
-
-if TENSORBOARD_LOG:
-    writer = SummaryWriter(TB_LOG_PATH)
+agent = Agent(Hyperparams.fingerprint_length + 1, 1, device)
 
 environment.initialize()
 
 eps_threshold = 1.0
 batch_losses = []
 
-for it in range(iterations):
-
-    steps_left = hyp.max_steps_per_episode - environment.num_steps_taken
+for it in range(Hyperparams.epochs):
+    steps_left = Hyperparams.max_steps_per_episode - environment.num_steps_taken
 
     # Compute a list of all possible valid actions. (Here valid_actions stores the states after taking the possible actions)
     valid_actions = list(environment.get_valid_actions())
@@ -52,9 +77,7 @@ for it in range(iterations):
     observations = np.vstack(
         [
             np.append(
-                utils.get_fingerprint(
-                    act, hyp.fingerprint_length, hyp.fingerprint_radius
-                ),
+                utils.numpy_morgan_fingerprint(act),
                 steps_left,
             )
             for act in valid_actions
@@ -74,26 +97,24 @@ for it in range(iterations):
     result = environment.step(action)
 
     action_fingerprint = np.append(
-        utils.get_fingerprint(action, hyp.fingerprint_length, hyp.fingerprint_radius),
+        utils.numpy_morgan_fingerprint(action),
         steps_left,
     )
 
     next_state, reward, done = result
+    reward, pred, sim = reward
 
     # Compute number of steps left
-    steps_left = hyp.max_steps_per_episode - environment.num_steps_taken
+    steps_left = Hyperparams.max_steps_per_episode - environment.num_steps_taken
 
     # Append steps_left to the new state and store in next_state
-    next_state = utils.get_fingerprint(
-        next_state, hyp.fingerprint_length, hyp.fingerprint_radius
-    )  # (fingerprint_length)
+    next_state = utils.numpy_morgan_fingerprint(next_state)
+    # (fingerprint_length)
 
     action_fingerprints = np.vstack(
         [
             np.append(
-                utils.get_fingerprint(
-                    act, hyp.fingerprint_length, hyp.fingerprint_radius
-                ),
+                utils.numpy_morgan_fingerprint(act),
                 steps_left,
             )
             for act in environment.get_valid_actions()
@@ -113,27 +134,21 @@ for it in range(iterations):
 
     if done:
         final_reward = reward
-        if episodes != 0 and TENSORBOARD_LOG and len(batch_losses) != 0:
-            writer.add_scalar("episode_reward", final_reward, episodes)
-            writer.add_scalar("episode_loss", np.array(batch_losses).mean(), episodes)
         if episodes != 0 and episodes % 2 == 0 and len(batch_losses) != 0:
-            print(
-                "reward of final molecule at episode {} is {}".format(
-                    episodes, final_reward
-                )
-            )
-            print(
-                "mean loss in episode {} is {}".format(
-                    episodes, np.array(batch_losses).mean()
-                )
-            )
+            Log(f'Episode {episodes}::Final Molecule Reward: {final_reward:.6f} (pred: {pred:.6f}, sim: {sim:.6f})')
+            Log(f'Episose {episodes}::Mean Loss: {np.array(batch_losses).mean()}')
+            Log(f'Episode {episodes}::Final Molecule: {action}')
         episodes += 1
         eps_threshold *= 0.99907
         batch_losses = []
         environment.initialize()
 
-    if it % update_interval == 0 and agent.replay_buffer.__len__() >= batch_size:
-        for update in range(num_updates_per_it):
-            loss = agent.update_params(batch_size, hyp.gamma, hyp.polyak)
+    if it % Hyperparams.update_interval == 0 and agent.replay_buffer.__len__() >= Hyperparams.batch_size:
+        for update in range(Hyperparams.num_updates_per_it):
+            loss = agent.update_params(
+                Hyperparams.batch_size,
+                Hyperparams.gamma,
+                Hyperparams.polyak
+            )
             loss = loss.item()
             batch_losses.append(loss)

@@ -1,7 +1,9 @@
 import torch
 import torch.nn.functional as F
-from torch_geometric.nn import GraphConv #, TopKPooling
+from torch_geometric.nn import GraphConv
+# from torch_geometric.nn import GCNConv, TopKPooling
 from torch_geometric.nn import global_mean_pool as gap, global_max_pool as gmp
+
 
 class Encoder(torch.nn.Module):
     def __init__(
@@ -40,10 +42,12 @@ class Encoder(torch.nn.Module):
 
         x = x1 + x2 + x3
 
+        encoding = x
+
         x = F.relu(self.lin1(x))
         x = F.dropout(x, p=0.5, training=self.training)
         x = F.relu(self.lin2(x))
 
         x = F.log_softmax(self.lin3(x), dim=-1)
 
-        return x
+        return x, encoding.detach()
