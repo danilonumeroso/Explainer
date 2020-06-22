@@ -1,0 +1,26 @@
+{
+  "original": "O=CC(Br)(Br)Br",
+  "index": 441,
+  "counterfacts": [
+    {
+      "smiles": "O=CC(Br)(Br)Br",
+      "score": 0.2
+    },
+    {
+      "smiles": "O=C(O)C(Br)(Br)Br",
+      "score": 0.05333333333333334
+    },
+    {
+      "smiles": "O=C(Br)C(Br)(Br)Br",
+      "score": 0.05333333333333334
+    },
+    {
+      "smiles": "CC(=O)C(Br)(Br)Br",
+      "score": 0.05
+    },
+    {
+      "smiles": "CC(Br)(Br)Br",
+      "score": 0.05
+    }
+  ]
+}

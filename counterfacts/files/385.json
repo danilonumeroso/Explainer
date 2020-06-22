@@ -1,0 +1,26 @@
+{
+  "original": "CCCCCCCCN1SC=CC1=O",
+  "index": 385,
+  "counterfacts": [
+    {
+      "smiles": "CCCCCCCCn1sccc1=O",
+      "score": 0.2
+    },
+    {
+      "smiles": "CCCCCCCCCn1sccc1=O",
+      "score": 0.2
+    },
+    {
+      "smiles": "CCCCCCCn1sccc1=O",
+      "score": 0.19444444444444445
+    },
+    {
+      "smiles": "O=c1ccsn1CCCCCCCCS",
+      "score": 0.13488372093023257
+    },
+    {
+      "smiles": "NCCCCCCCCn1sccc1=O",
+      "score": 0.13488372093023257
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "original": "CN(C)C(=S)SSC(=S)N(C)C",
+  "index": 424,
+  "counterfacts": [
+    {
+      "smiles": "CN(C)C(=S)SSC(=S)N(C)C",
+      "score": 0.2
+    },
+    {
+      "smiles": "CN(C)C(=S)SSC(=S)N(C)C=S",
+      "score": 0.12
+    },
+    {
+      "smiles": "CCN(C)C(=S)SSC(=S)N(C)C",
+      "score": 0.12
+    },
+    {
+      "smiles": "CN(C)C(=S)SSC(=S)N(C)CS",
+      "score": 0.11538461538461538
+    },
+    {
+      "smiles": "CN(C)C(=S)SSC(=S)N(C)C#N",
+      "score": 0.11538461538461538
+    }
+  ]
+}

@@ -6,7 +6,8 @@ from rdkit.Chem import AllChem
 from rdkit.Chem import RDConfig
 from torch_geometric.data import Data
 
-from config.explainer import Args, Elements, Edges, EdgesToRDKit
+from config.explainer import Args, Elements\
+    , Edges, EdgesToRDKit, Path
 
 import numpy as np
 import sys
@@ -16,6 +17,59 @@ import torch
 Hyperparams = Args()
 
 sys.path.append(os.path.join(RDConfig.RDContribDir, "SA_Score"))
+
+
+class TopKCounterfactuals:
+    Leaderboard = None
+    K = 5
+
+    @staticmethod
+    def init(original, index, k=5):
+
+        TopKCounterfactuals.K = k
+
+        if TopKCounterfactuals.Leaderboard is None:
+            TopKCounterfactuals.Leaderboard = {
+                'original': original,
+                'index': index,
+                'counterfacts': [
+                    {'smiles': '', 'score': -0.1}
+                    for _ in range(k)
+                ]
+            }
+
+    @staticmethod
+    def insert(counterfact):
+
+        Leaderboard = TopKCounterfactuals.Leaderboard
+        K = TopKCounterfactuals.K
+
+        if any(
+            x['smiles'] == counterfact['smiles']
+            for x in Leaderboard['counterfacts']
+        ):
+            return
+
+        Leaderboard['counterfacts'].extend([counterfact])
+        Leaderboard['counterfacts'].sort(
+            reverse=True,
+            key=lambda x: x['score']
+        )
+        Leaderboard['counterfacts'] = Leaderboard['counterfacts'][:K]
+
+        TopKCounterfactuals._dump()
+
+    @staticmethod
+    def _dump():
+        import json
+
+        with open(
+            Path.counterfacts(
+                str(TopKCounterfactuals.Leaderboard['index']) + '.json'
+            ),
+            'w'
+        ) as f:
+            json.dump(TopKCounterfactuals.Leaderboard, f, indent=2)
 
 
 def morgan_fingerprint(smiles):
@@ -57,7 +111,7 @@ def atom_valences(atom_types):
     ]
 
 
-def pyg_to_smiles(pyg_mol):
+def pyg_to_mol(pyg_mol):
     mol = Chem.RWMol()
 
     X = pyg_mol.x.numpy().tolist()
@@ -90,7 +144,13 @@ def pyg_to_smiles(pyg_mol):
 
             mol.AddBond(u, v, attr)
 
-    return Chem.MolToSmiles(mol)
+    return mol
+
+
+def pyg_to_smiles(pyg_mol):
+    return Chem.MolToSmiles(
+        pyg_to_mol(pyg_mol)
+    )
 
 
 def mol_to_pyg(molecule):
@@ -134,7 +194,7 @@ def get_encoder(name="Encoder"):
 
         encoder = Encoder(50, 128, 2)
         encoder.load_state_dict(
-            torch.load("ckpt/Encoder.pth")
+            torch.load("ckpt/Encoder.pth", map_location=torch.device('cpu'))
         )
         encoder.eval()
         return encoder

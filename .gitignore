@@ -133,3 +133,6 @@ log/
 data/
 ckpt/
 runs/
+.copyfile
+.copymodel
+.rsync

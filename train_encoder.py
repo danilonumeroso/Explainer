@@ -11,6 +11,7 @@ from models.encoder import Encoder
 from config.encoder import Args, Path
 from config import filter
 
+
 Hyperparams = Args()
 
 dataset = TUDataset(
@@ -57,7 +58,7 @@ def train(epoch):
     for data in train_loader:
         data = data.to(device)
         optimizer.zero_grad()
-        output, _ = model(data)
+        output, _ = model(data.x, data.edge_index, batch=data.batch)
         loss = F.nll_loss(output, data.y, weight=Hyperparams.weight.to(device))
         loss.backward()
         loss_all += data.num_graphs * loss.item()
@@ -75,7 +76,7 @@ def test(loader):
     for data in loader:
         data = data.to(device)
 
-        pred, _ = model(data)
+        pred, _ = model(data.x, data.edge_index, batch=data.batch)
         pred = pred.max(dim=1)[1]
 
         y = torch.cat([y, data.y])

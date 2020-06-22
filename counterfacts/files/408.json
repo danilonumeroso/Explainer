@@ -1,0 +1,26 @@
+{
+  "original": "CCC1(C2OC(C3OC(O)(CO)C(C)CC3C)CC2C)CCC(C2(C)CCC3(CC(O)C(C)C(C(C)C(OC)C(C)C(=O)O)O3)O2)O1.[NaH]",
+  "index": 408,
+  "counterfacts": [
+    {
+      "smiles": "CCC1(C2OC(C3OC(O)(CO)C(C)CC3C)CC2C)CCC(C2(C)CCC3(CC(O)C(C)C(C(C)C(OC)C(C)C(=O)OC)O3)O2)O1.[NaH]",
+      "score": 0.17719298245614035
+    },
+    {
+      "smiles": "C#COC(C(C)C(=O)O)C(C)C1OC2(CCC(C)(C3CCC(CC)(C4OC(C5OC(O)(CO)C(C)CC5C)CC4C)O3)O2)CC(O)C1C.[NaH]",
+      "score": 0.17586206896551726
+    },
+    {
+      "smiles": "CCC1(C2OC(C3OC(O)(CO)C(C)CC3C)CC2C)CCC(C2(C)CCC3(CC(O)C(C)C(C(C)C(OCO)C(C)C(=O)O)O3)O2)O1.[NaH]",
+      "score": 0.17413793103448277
+    },
+    {
+      "smiles": "CCOC(C(C)C(=O)O)C(C)C1OC2(CCC(C)(C3CCC(CC)(C4OC(C5OC(O)(CO)C(C)CC5C)CC4C)O3)O2)CC(O)C1C.[NaH]",
+      "score": 0.17413793103448277
+    },
+    {
+      "smiles": "CCCC1(C2OC(C3OC(O)(CO)C(C)CC3C)CC2C)CCC(C2(C)CCC3(CC(O)C(C)C(C(C)C(OC)C(C)C(=O)O)O3)O2)O1.[NaH]",
+      "score": 0.17413793103448277
+    }
+  ]
+}

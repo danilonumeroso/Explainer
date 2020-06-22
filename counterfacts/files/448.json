@@ -1,0 +1,26 @@
+{
+  "original": "C=CC1(C)CC(OC(=O)CSC(C)(C)CNC(=O)C(N)C(C)C)C2(C)C(C)CCC3(CCC(=O)C32)C(C)C1O",
+  "index": 448,
+  "counterfacts": [
+    {
+      "smiles": "C=CC1(C)CC(OC(=O)CSC(C)(C)CNC(=O)C(N)C(C)C)C2(C)C(C)CCC3(CCC(=O)C32)C(C)C1O",
+      "score": 0.2
+    },
+    {
+      "smiles": "C=CC(C)C(N)C(=O)NCC(C)(C)SCC(=O)OC1CC(C)(C=C)C(O)C(C)C23CCC(=O)C2C1(C)C(C)CC3",
+      "score": 0.17450980392156865
+    },
+    {
+      "smiles": "C=CC1(C)CC(OC(=O)CSC(C)(C)CNC(=O)C(N)C(C)CN)C2(C)C(C)CCC3(CCC(=O)C32)C(C)C1O",
+      "score": 0.17450980392156865
+    },
+    {
+      "smiles": "C=CC1(C)CC(OC(=O)CSC(C)(C)CNC(=O)C(N)C(C)C=O)C2(C)C(C)CCC3(CCC(=O)C32)C(C)C1O",
+      "score": 0.17281553398058253
+    },
+    {
+      "smiles": "C=CC1(C)CC(OC(=O)CSC(C)(C)CNC(=O)C(N)C(C)(C)C)C2(C)C(C)CCC3(CCC(=O)C32)C(C)C1O",
+      "score": 0.17200000000000001
+    }
+  ]
+}

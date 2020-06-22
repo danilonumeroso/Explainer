@@ -1,0 +1,26 @@
+{
+  "original": "O=C1C=CC(=O)N1",
+  "index": 432,
+  "counterfacts": [
+    {
+      "smiles": "NC1=CC(=O)NC1=O",
+      "score": 0.8295477714227594
+    },
+    {
+      "smiles": "NN1C(=O)C=CC1=O",
+      "score": 0.8234411089193254
+    },
+    {
+      "smiles": "O=C1C=CCN1",
+      "score": 0.35205961574207656
+    },
+    {
+      "smiles": "O=C1C=CC(=O)N1",
+      "score": 0.2
+    },
+    {
+      "smiles": "O=C1C=C(O)C(=O)N1",
+      "score": 0.10540143510569698
+    }
+  ]
+}

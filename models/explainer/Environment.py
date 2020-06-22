@@ -32,14 +32,14 @@ from six.moves import zip
 import utils
 
 
-class Result(collections.namedtuple("Result", ["state", "reward", "terminated"])):
-    """A namedtuple defines the result of a step for the molecule class.
-
-    The namedtuple contains the following fields:
-      state: Chem.RWMol. The molecule reached after taking the action.
-      reward: Float. The reward get after taking the action.
-      terminated: Boolean. Whether this episode is terminated.
-    """
+Result = collections.namedtuple(
+    "Result",
+    [
+        "state",
+        "reward",
+        "terminated"
+    ]
+)
 
 
 def get_valid_actions(
@@ -50,44 +50,59 @@ def get_valid_actions(
     allowed_ring_sizes,
     allow_bonds_between_rings,
 ):
-    """Computes the set of valid actions for a given state.
+    """
+    Computes the set of valid actions for a given state.
 
-  Args:
+    Args:
     state: String SMILES; the current state. If None or the empty string, we
       assume an "empty" state with no atoms or bonds.
+
     atom_types: Set of string atom types, e.g. {'C', 'O'}.
-    allow_removal: Boolean whether to allow actions that remove atoms and bonds.
+
+    allow_removal: Boolean whether to allow actions that remove atoms
+    and bonds.
+
     allow_no_modification: Boolean whether to include a "no-op" action.
+
     allowed_ring_sizes: Set of integer allowed ring sizes; used to remove some
       actions that would create rings with disallowed sizes.
+
     allow_bonds_between_rings: Boolean whether to allow actions that add bonds
       between atoms that are both in rings.
 
-  Returns:
+    Returns:
     Set of string SMILES containing the valid actions (technically, the set of
     all states that are acceptable from the given state).
 
-  Raises:
+    Raises:
     ValueError: If state does not represent a valid molecule.
-  """
+    """
     if not state:
         # Available actions are adding a node of each type.
         return copy.deepcopy(atom_types)
 
     mol = Chem.MolFromSmiles(state)
+
     if mol is None:
         raise ValueError("Received invalid state: %s" % state)
+
     atom_valences = {
-        atom_type: utils.atom_valences([atom_type])[0] for atom_type in atom_types
+        atom_type: utils.atom_valences([atom_type])[0]
+        for atom_type in atom_types
     }
+
     atoms_with_free_valence = {}
+
     for i in range(1, max(atom_valences.values())):
-        # Only atoms that allow us to replace at least one H with a new bond are
-        # enumerated here.
+        # Only atoms that allow us to replace at least one H with
+        # a new bond are enumerated here.
         atoms_with_free_valence[i] = [
-            atom.GetIdx() for atom in mol.GetAtoms() if atom.GetNumImplicitHs() >= i
+            atom.GetIdx() for atom in mol.GetAtoms()
+            if atom.GetNumImplicitHs() >= i
         ]
+
     valid_actions = set()
+
     valid_actions.update(
         _atom_addition(
             mol,
@@ -96,6 +111,7 @@ def get_valid_actions(
             atoms_with_free_valence=atoms_with_free_valence,
         )
     )
+
     valid_actions.update(
         _bond_addition(
             mol,
@@ -104,40 +120,40 @@ def get_valid_actions(
             allow_bonds_between_rings=allow_bonds_between_rings,
         )
     )
+
     if allow_removal:
         valid_actions.update(_bond_removal(mol))
+
     if allow_no_modification:
         valid_actions.add(Chem.MolToSmiles(mol))
+
     return valid_actions
 
 
-def _atom_addition(state, atom_types, atom_valences, atoms_with_free_valence):
-    return _atom_addition_v2(
-        state, atom_types, atom_valences, atoms_with_free_valence
-    )
-
-
-def _atom_addition_v1(
+def _atom_addition(
     state, atom_types, atom_valences, atoms_with_free_valence
 ):
     """
     Computes valid actions that involve adding atoms to the graph.
 
-  Actions:
+    Actions:
     * Add atom (with a bond connecting it to the existing graph)
 
-  Each added atom is connected to the graph by a bond. There is a separate
-  action for connecting to (a) each existing atom with (b) each valence-allowed
-  bond type. Note that the connecting bond is only of type single, double, or
-  triple (no aromatic bonds are added).
+    Each added atom is connected to the graph by a bond. There is a separate
+    action for connecting to (a) each existing atom with (b)
+    each valence-allowed
+    bond type. Note that the connecting bond is only of type single, double, or
+    triple (no aromatic bonds are added).
 
-  For example, if an existing carbon atom has two empty valence positions and
-  the available atom types are {'C', 'O'}, this section will produce new states
-  where the existing carbon is connected to (1) another carbon by a double bond
-  (2) another carbon by a single bond, (3) an oxygen by a double bond, and
-  (4) an oxygen by a single bond.
+    For example, if an existing carbon atom has two empty valence positions and
+    the available atom types are {'C', 'O'}, this section will produce new
+    states
+    where the existing carbon is connected to (1) another carbon by a double
+    bond,
+    (2) another carbon by a single bond, (3) an oxygen by a double bond, and
+    (4) an oxygen by a single bond.
 
-  Args:
+    Args:
     state: RDKit Mol.
     atom_types: Set of string atom types.
     atom_valences: Dict mapping string atom types to integer valences.
@@ -145,75 +161,15 @@ def _atom_addition_v1(
     values to lists of integer atom indices. For instance, all atom indices in
     atoms_with_free_valence[2] have at least two available valence positions.
 
-  Returns:
+    Returns:
     Set of string SMILES; the available actions.
-  """
-    bond_order = {
-        1: Chem.BondType.SINGLE,
-        # 2: Chem.BondType.DOUBLE,
-        # 3: Chem.BondType.TRIPLE,
-    }
-    atom_addition = set()
-    for i in bond_order:
-        for atom in atoms_with_free_valence[i]:
-            for element in atom_types:
-                if atom_valences[element] >= i:
-                    new_state = Chem.RWMol(state)
-                    idx = new_state.AddAtom(Chem.Atom(element))
-                    new_state.AddBond(atom, idx, bond_order[i])
-                    sanitization_result = Chem.SanitizeMol(
-                        new_state,
-                        catchErrors=True
-                    )
-                    # When sanitization fails
-                    if sanitization_result:
-                        continue
-                    atom_addition.add(Chem.MolToSmiles(new_state))
-    return atom_addition
+    """
 
-
-def _atom_addition_v2(
-    state, atom_types, atom_valences, atoms_with_free_valence
-):
-    """Computes valid actions that involve adding atoms to the graph.
-
-  Actions:
-    * Add atom (with a bond connecting it to the existing graph)
-
-  Each added atom is connected to the graph by a bond. There is a separate
-  action for connecting to (a) each existing atom with (b) each valence-allowed
-  bond type. Note that the connecting bond is only of type single, double, or
-  triple (no aromatic bonds are added).
-
-  For example, if an existing carbon atom has two empty valence positions and
-  the available atom types are {'C', 'O'}, this section will produce new states
-  where the existing carbon is connected to (1) another carbon by a double bond,
-  (2) another carbon by a single bond, (3) an oxygen by a double bond, and
-  (4) an oxygen by a single bond.
-
-  Args:
-    state: RDKit Mol.
-    atom_types: Set of string atom types.
-    atom_valences: Dict mapping string atom types to integer valences.
-    atoms_with_free_valence: Dict mapping integer minimum available valence
-    values to lists of integer atom indices. For instance, all atom indices in
-    atoms_with_free_valence[2] have at least two available valence positions.
-
-  Returns:
-    Set of string SMILES; the available actions.
-  """
     bond_order = {
         1: Chem.BondType.SINGLE,
         2: Chem.BondType.DOUBLE,
         3: Chem.BondType.TRIPLE
     }
-
-    # bond_order = [
-    #     (1, Chem.BondType.SINGLE),
-    #     (1.5, Chem.BondType.AROMATIC),
-    #     (2, Chem.BondType.DOUBLE),
-    #     (3, Chem.BondType.TRIPLE)
-    # ]
 
     atom_addition = set()
     for i in bond_order:
@@ -235,101 +191,6 @@ def _atom_addition_v2(
 
 
 def _bond_addition(
-    state,
-    atoms_with_free_valence,
-    allowed_ring_sizes,
-    allow_bonds_between_rings
-):
-    return _bond_addition_v2(
-        state, atoms_with_free_valence,
-        allowed_ring_sizes, allow_bonds_between_rings
-    )
-
-
-def _bond_addition_v1(
-    state, atoms_with_free_valence,
-    allowed_ring_sizes, allow_bonds_between_rings
-):
-    """Computes valid actions that involve adding bonds to the graph.
-
-  Actions (where allowed):
-    * None->{single,double,triple}
-    * single->{double,triple}
-    * double->{triple}
-
-  Note that aromatic bonds are not modified.
-
-  Args:
-    state: RDKit Mol.
-    atoms_with_free_valence: Dict mapping integer minimum available valence
-      values to lists of integer atom indices. For instance, all atom indices in
-      atoms_with_free_valence[2] have at least two available valence positions.
-    allowed_ring_sizes: Set of integer allowed ring sizes; used to remove some
-      actions that would create rings with disallowed sizes.
-    allow_bonds_between_rings: Boolean whether to allow actions that add bonds
-      between atoms that are both in rings.
-
-  Returns:
-    Set of string SMILES; the available actions.
-  """
-    bond_orders = [
-        None,
-        Chem.BondType.SINGLE,
-        # Chem.BondType.DOUBLE,
-        # Chem.BondType.TRIPLE,
-    ]
-    bond_addition = set()
-    for valence, atoms in atoms_with_free_valence.items():
-        for atom1, atom2 in itertools.combinations(atoms, 2):
-            # Get the bond from a copy of the molecule so that SetBondType() doesn't
-            # modify the original state.
-            bond = Chem.Mol(state).GetBondBetweenAtoms(atom1, atom2)
-            new_state = Chem.RWMol(state)
-            # Kekulize the new state to avoid sanitization errors; note that bonds
-            # that are aromatic in the original state are not modified (this is
-            # enforced by getting the bond from the original state with
-            # GetBondBetweenAtoms()).
-            Chem.Kekulize(new_state, clearAromaticFlags=True)
-            if bond is not None:
-                continue
-                # if bond.GetBondType() not in bond_orders:
-                #     continue  # Skip aromatic bonds.
-                # idx = bond.GetIdx()
-                # # Compute the new bond order as an offset from the current bond order.
-                # bond_order = bond_orders.index(bond.GetBondType())
-                # bond_order += valence
-                # if bond_order < len(bond_orders):
-                #     idx = bond.GetIdx()
-                #     bond.SetBondType(bond_orders[bond_order])
-                #     new_state.ReplaceBond(idx, bond)
-                # else:
-                #     continue
-            # If do not allow new bonds between atoms already in rings.
-            elif not allow_bonds_between_rings and (
-                state.GetAtomWithIdx(atom1).IsInRing()
-                and state.GetAtomWithIdx(atom2).IsInRing()
-            ):
-                continue
-            # If the distance between the current two atoms is not in the
-            # allowed ring sizes
-            elif (
-                allowed_ring_sizes is not None
-                and len(Chem.rdmolops.GetShortestPath(state, atom1, atom2))
-                not in allowed_ring_sizes
-            ):
-                continue
-            else:
-                # new_state.AddBond(atom1, atom2, bond_orders[valence])
-                new_state.AddBond(atom1, atom2, Chem.BondType.SINGLE)
-            sanitization_result = Chem.SanitizeMol(new_state, catchErrors=True)
-            # When sanitization fails
-            if sanitization_result:
-                continue
-            bond_addition.add(Chem.MolToSmiles(new_state))
-    return bond_addition
-
-
-def _bond_addition_v2(
     state, atoms_with_free_valence,
     allowed_ring_sizes, allow_bonds_between_rings
 ):
@@ -391,23 +252,26 @@ def _bond_addition_v2(
 
 
 def _bond_removal(state):
-    """Computes valid actions that involve removing bonds from the graph.
+    """
+    Computes valid actions that involve removing bonds from the graph.
 
-  Actions (where allowed):
+    Actions (where allowed):
     * triple->{double,single,None}
     * double->{single,None}
     * single->{None}
 
-  Bonds are only removed (single->None) if the resulting graph has zero or one
-  disconnected atom(s); the creation of multi-atom disconnected fragments is not
-  allowed. Note that aromatic bonds are not modified.
+    Bonds are only removed (single->None) if the resulting graph has
+    zero or one disconnected atom(s); the creation of multi-atom
+    disconnected fragments is not allowed.
+    Note that aromatic bonds are not modified.
 
-  Args:
+    Args:
     state: RDKit Mol.
 
-  Returns:
+    Returns:
     Set of string SMILES; the available actions.
-  """
+    """
+
     bond_orders = [
         None,
         Chem.BondType.SINGLE,
@@ -480,34 +344,42 @@ class Molecule(object):
     ):
         """Initializes the parameters for the MDP.
 
-    Internal state will be stored as SMILES strings.
+        Internal state will be stored as SMILES strings.
 
-    Args:
-      atom_types: The set of elements the molecule may contain.
-      init_mol: String, Chem.Mol, or Chem.RWMol. If string is provided, it is
+        Args:
+        atom_types: The set of elements the molecule may contain.
+        init_mol: String, Chem.Mol, or Chem.RWMol. If string is provided, it is
         considered as the SMILES string. The molecule to be set as the initial
         state. If None, an empty molecule will be created.
-      allow_removal: Boolean. Whether to allow removal of a bond.
-      allow_no_modification: Boolean. If true, the valid action set will
+
+        allow_removal: Boolean. Whether to allow removal of a bond.
+
+        allow_no_modification: Boolean. If true, the valid action set will
         include doing nothing to the current molecule, i.e., the current
         molecule itself will be added to the action set.
-      allow_bonds_between_rings: Boolean. If False, new bonds connecting two
+        allow_bonds_between_rings: Boolean. If False, new bonds connecting two
         atoms which are both in rings are not allowed.
         DANGER Set this to False will disable some of the transformations eg.
         c2ccc(Cc1ccccc1)cc2 -> c1ccc3c(c1)Cc2ccccc23
         But it will make the molecules generated make more sense chemically.
-      allowed_ring_sizes: Set of integers or None. The size of the ring which
+
+        allowed_ring_sizes: Set of integers or None. The size of the ring which
         is allowed to form. If None, all sizes will be allowed. If a set is
         provided, only sizes in the set is allowed.
-      max_steps: Integer. The maximum number of steps to run.
-      target_fn: A function or None. The function should have Args of a
+
+        max_steps: Integer. The maximum number of steps to run.
+
+        target_fn: A function or None. The function should have Args of a
         String, which is a SMILES string (the state), and Returns as
         a Boolean which indicates whether the input satisfies a criterion.
         If None, it will not be used as a criterion.
-      record_path: Boolean. Whether to record the steps internally.
+
+        record_path: Boolean. Whether to record the steps internally.
     """
+
         if isinstance(init_mol, Chem.Mol):
             init_mol = Chem.MolToSmiles(init_mol)
+
         self.init_mol = init_mol
         self.atom_types = atom_types
         self.allow_removal = allow_removal

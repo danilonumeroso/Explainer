@@ -1,0 +1,26 @@
+{
+  "original": "Cl[V](Cl)(C1C=CC=C1)C1C=CC=C1",
+  "index": 453,
+  "counterfacts": [
+    {
+      "smiles": "Cl[V](Cl)(C1C=CC=C1)C1C=CC=C1",
+      "score": 0.2
+    },
+    {
+      "smiles": "Cl[V](Cl)(C1C=C=C=C1)C1C=CC=C1",
+      "score": 0.11851851851851852
+    },
+    {
+      "smiles": "ClC1=CC([V](Cl)(Cl)C2C=CC=C2)C=C1",
+      "score": 0.1032258064516129
+    },
+    {
+      "smiles": "CC1=CC([V](Cl)(Cl)C2C=CC=C2)C=C1",
+      "score": 0.1
+    },
+    {
+      "smiles": "ClC1=CC=CC1[V](Cl)(Cl)C1C=CC=C1",
+      "score": 0.08750000000000001
+    }
+  ]
+}

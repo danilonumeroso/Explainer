@@ -1,0 +1,26 @@
+{
+  "original": "CN(C)CCC=C1c2ccccc2CCc2ccccc21.Cl",
+  "index": 500,
+  "counterfacts": [
+    {
+      "smiles": "CN(C)CCC=C1c2ccccc2CCc2ccccc21.Cl",
+      "score": 0.2
+    },
+    {
+      "smiles": "CN(C)CCC=C1c2ccccc2CCc2ccccc21.ClCl",
+      "score": 0.18604651162790697
+    },
+    {
+      "smiles": "CCl.CN(C)CCC=C1c2ccccc2CCc2ccccc21",
+      "score": 0.18604651162790697
+    },
+    {
+      "smiles": "CN(C)CCC=C1c2ccccc2CCc2ccccc21.NCl",
+      "score": 0.18181818181818182
+    },
+    {
+      "smiles": "CCN(C)CCC=C1c2ccccc2CCc2ccccc21.Cl",
+      "score": 0.1469387755102041
+    }
+  ]
+}

@@ -10,12 +10,12 @@ class Counterfactual(Molecule):
     """The molecule whose reward is the QED."""
 
     def __init__(
-            self,
-            discount_factor,
-            base_molecule,
-            counterfactual_class,
-            weight_sim=0.5,
-            **kwargs
+        self,
+        discount_factor,
+        base_molecule,
+        counterfactual_class,
+        weight_sim=0.5,
+        **kwargs
     ):
         """
         Initializes the class.
@@ -41,12 +41,11 @@ class Counterfactual(Molecule):
 
         self.encoder = utils.get_encoder("Encoder")
         self.base_molecule = base_molecule
-        out_, self.base_encoding = self._encode(base_molecule)
+        pred, self.base_encoding = self._encode(base_molecule)
+
+        assert pred.max(dim=1)[1] != counterfactual_class
 
         self.discount_factor = discount_factor
-
-        # from scipy import spatial
-        # self._similarity = F.cosine_similarity
 
         self._similarity = lambda mol1, fp2: \
             DataStructs.TanimotoSimilarity(
@@ -59,7 +58,10 @@ class Counterfactual(Molecule):
         self.i = 0
 
     def _encode(self, molecule):
-        output, encoding = self.encoder(molecule)
+        output, encoding = self.encoder(molecule.x,
+                                        molecule.edge_index,
+                                        molecule.batch)
+
         return output, encoding.squeeze()
 
     def _reward(self):

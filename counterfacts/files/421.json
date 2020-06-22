@@ -1,0 +1,26 @@
+{
+  "original": "CNCCC=C1c2ccccc2CCc2ccccc21.Cl",
+  "index": 421,
+  "counterfacts": [
+    {
+      "smiles": "CNCCC=C1c2ccccc2CCc2cc(N)ccc21.Cl",
+      "score": 0.6915247682939496
+    },
+    {
+      "smiles": "CNCCC=C1c2ccccc2CCc2ccc(N)cc21.Cl",
+      "score": 0.6828234066042984
+    },
+    {
+      "smiles": "CNC1CC=C2c3ccccc3CCc3cccc1c32.Cl",
+      "score": 0.661700248382461
+    },
+    {
+      "smiles": "CNCCC=C1c2ccccc2CCc2c(N)cccc21.Cl",
+      "score": 0.6296898174285889
+    },
+    {
+      "smiles": "CNC1CC1=C1c2ccccc2CCc2ccccc21.Cl",
+      "score": 0.6179684335902585
+    }
+  ]
+}
