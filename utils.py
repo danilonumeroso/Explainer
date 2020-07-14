@@ -14,8 +14,6 @@ import sys
 import os
 import torch
 
-Hyperparams = Args()
-
 sys.path.append(os.path.join(RDConfig.RDContribDir, "SA_Score"))
 
 
@@ -72,7 +70,7 @@ class TopKCounterfactuals:
             json.dump(TopKCounterfactuals.Leaderboard, f, indent=2)
 
 
-def morgan_fingerprint(smiles):
+def morgan_fingerprint(smiles, fp_length, fp_radius):
     if smiles is None:
         return None
 
@@ -83,16 +81,16 @@ def morgan_fingerprint(smiles):
 
     return AllChem.GetMorganFingerprintAsBitVect(
         molecule,
-        Hyperparams.fingerprint_radius,
-        Hyperparams.fingerprint_length
+        fp_radius,
+        fp_length
     )
 
 
-def numpy_morgan_fingerprint(smiles):
-    fingerprint = morgan_fingerprint(smiles)
+def numpy_morgan_fingerprint(smiles, fp_length, fp_radius):
+    fingerprint = morgan_fingerprint(smiles, fp_length, fp_radius)
 
     if fingerprint is None:
-        return np.zeros((Hyperparams.fingerprint_length,))
+        return np.zeros((fp_length,))
 
     arr = np.zeros((1,))
 

@@ -7,11 +7,11 @@
       "score": 0.2
     },
     {
-      "smiles": "CN(C)CCC=C1c2ccccc2CCc2ccccc21.ClCl",
+      "smiles": "CCl.CN(C)CCC=C1c2ccccc2CCc2ccccc21",
       "score": 0.18604651162790697
     },
     {
-      "smiles": "CCl.CN(C)CCC=C1c2ccccc2CCc2ccccc21",
+      "smiles": "CN(C)CCC=C1c2ccccc2CCc2ccccc21.ClCl",
       "score": 0.18604651162790697
     },
     {

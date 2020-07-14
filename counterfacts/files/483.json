@@ -1,0 +1,26 @@
+{
+  "original": "Oc1c(Cl)cc(Cl)cc1Sc1cc(Cl)cc(Cl)c1O.[NaH].[NaH]",
+  "index": 483,
+  "counterfacts": [
+    {
+      "smiles": "Oc1c(Cl)cc(Cl)cc1Sc1cc(Cl)cc(Cl)c1O.[NaH].[NaH]",
+      "score": 0.2
+    },
+    {
+      "smiles": "Oc1c(Cl)cc(Cl)cc1Sc1cc(Cl)c(O)c(Cl)c1O.[NaH].[NaH]",
+      "score": 0.1435897435897436
+    },
+    {
+      "smiles": "Oc1c(Cl)cc(Cl)cc1Sc1cc(Cl)c(Cl)c(Cl)c1O.[NaH].[NaH]",
+      "score": 0.13999999999999999
+    },
+    {
+      "smiles": "Oc1c(Cl)cc(Cl)cc1Sc1cc(Cl)c([Na])c(Cl)c1O.[NaH].[NaH]",
+      "score": 0.13333333333333333
+    },
+    {
+      "smiles": "Oc1c(Cl)cc(Cl)cc1Sc1cc(Cl)c(S)c(Cl)c1O.[NaH].[NaH]",
+      "score": 0.13333333333333333
+    }
+  ]
+}

@@ -4,13 +4,12 @@ import torch.optim as opt
 from models.explainer import MolDQN
 from config.explainer import Args
 
-Hyperparams = Args()
-
-REPLAY_BUFFER_CAPACITY = Hyperparams.replay_buffer_size
-
 
 class Agent(object):
     def __init__(self, input_length, output_length, device):
+
+        Hyperparams = Args()
+        REPLAY_BUFFER_CAPACITY = Hyperparams.replay_buffer_size
 
         self.device = device
 
@@ -44,6 +43,8 @@ class Agent(object):
         return action
 
     def update_params(self, batch_size, gamma, polyak):
+
+        Hyperparams = Args()
         # update target network
 
         # sample batch of transitions

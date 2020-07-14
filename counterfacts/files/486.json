@@ -1,0 +1,26 @@
+{
+  "original": "CCCCN(CCCC)C(=S)S.CCCCN(CCCC)C(=S)S.[Zn]",
+  "index": 486,
+  "counterfacts": [
+    {
+      "smiles": "CCCCN(CCCC)C(=S)S.CCCCN(CCCC)C(=S)S.[Zn]",
+      "score": 0.2
+    },
+    {
+      "smiles": "CCCCN(CCCC)C(=S)S",
+      "score": 0.19130434782608696
+    },
+    {
+      "smiles": "CCCCCN(CCCC)C(=S)S.CCCCN(CCCC)C(=S)S.[Zn]",
+      "score": 0.16428571428571428
+    },
+    {
+      "smiles": "CCCCN(CCCC)C(=S)S.CCCCN(CCCCS)C(=S)S.[Zn]",
+      "score": 0.14838709677419357
+    },
+    {
+      "smiles": "CCCCN(CCC(C)=S)C(=S)S.CCCCN(CCCC)C(=S)S.[Zn]",
+      "score": 0.14375000000000002
+    }
+  ]
+}

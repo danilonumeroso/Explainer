@@ -1,0 +1,26 @@
+{
+  "original": "CN1C(=O)C(O)N=C(c2ccccc2)c2cc(Cl)ccc21",
+  "index": 577,
+  "counterfacts": [
+    {
+      "smiles": "CN1C(=O)C(O)N=C(c2ccccc2)c2cc(Cl)c(N)cc21",
+      "score": 0.3297661579830546
+    },
+    {
+      "smiles": "CN1C(=O)C(O)N=C(c2cccc(N)c2)c2cc(Cl)ccc21",
+      "score": 0.2850296132704791
+    },
+    {
+      "smiles": "CN1C(=O)C(O)N=C(c2ccc(N)cc2)c2cc(Cl)ccc21",
+      "score": 0.2662639110807389
+    },
+    {
+      "smiles": "CN1C(=O)C(O)N=C(c2ccccc2N)c2cc(Cl)ccc21",
+      "score": 0.20274831207705218
+    },
+    {
+      "smiles": "CN1C(=O)C(O)N=C(c2ccccc2)c2cc(Cl)ccc21",
+      "score": 0.2
+    }
+  ]
+}

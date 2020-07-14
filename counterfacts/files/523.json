@@ -1,0 +1,26 @@
+{
+  "original": "O=S(=O)(O)c1ccc(Nc2nc(Nc3ccc(C=Cc4ccc(Nc5nc(Nc6ccc(S(=O)(=O)O)cc6)nc(N(CCO)CCO)n5)cc4S(=O)(=O)O)c(S(=O)(=O)O)c3)nc(N(CCO)CCO)n2)cc1.[NaH].[NaH].[NaH].[NaH]",
+  "index": 523,
+  "counterfacts": [
+    {
+      "smiles": "O=S(=O)(O)c1ccc(Nc2nc(Nc3ccc(C=Cc4ccc(Nc5nc(Nc6ccc(S(=O)(=O)O)cc6)nc(N(CCO)CCO)n5)cc4S(=O)(=O)O)c(S(=O)(=O)O)c3)nc(N(CCO)CCO)n2)cc1.[NaH].[NaH].[NaH].[NaH]",
+      "score": 0.2
+    },
+    {
+      "smiles": "O=S(=O)(O)c1ccc(Nc2nc(Nc3ccc(C=Cc4ccc(Nc5nc(Nc6ccc(S(=O)(=O)OO)cc6)nc(N(CCO)CCO)n5)cc4S(=O)(=O)O)c(S(=O)(=O)O)c3)nc(N(CCO)CCO)n2)cc1.[NaH].[NaH].[NaH].[NaH]",
+      "score": 0.1763157894736842
+    },
+    {
+      "smiles": "O=[SH](=O)c1ccc(Nc2nc(Nc3ccc(C=Cc4ccc(Nc5nc(Nc6ccc(S(=O)(=O)O)cc6)nc(N(CCO)CCO)n5)cc4S(=O)(=O)O)c(S(=O)(=O)O)c3)nc(N(CCO)CCO)n2)cc1",
+      "score": 0.17600000000000002
+    },
+    {
+      "smiles": "CCN(CCO)c1nc(Nc2ccc(S(=O)(=O)O)cc2)nc(Nc2ccc(C=Cc3ccc(Nc4nc(Nc5ccc(S(=O)(=O)O)cc5)nc(N(CCO)CCO)n4)cc3S(=O)(=O)O)c(S(=O)(=O)O)c2)n1",
+      "score": 0.17600000000000002
+    },
+    {
+      "smiles": "O=S(=O)(O)c1ccc(Nc2nc(Nc3ccc(C=Cc4ccc(Nc5nc(Nc6ccc([SH](=O)(O)O)cc6)nc(N(CCO)CCO)n5)cc4S(=O)(=O)O)c(S(=O)(=O)O)c3)nc(N(CCO)CCO)n2)cc1.[NaH].[NaH].[NaH].[NaH]",
+      "score": 0.17402597402597403
+    }
+  ]
+}

@@ -1,5 +1,19 @@
 import argparse as ap
 import sys
+import torch
+import json
+import utils
+
+from torch.nn import functional as F
+from rdkit import Chem
+from rdkit.Chem import Draw
+from torch_geometric.datasets import TUDataset
+from config.explainer import Path
+from config import filter as filter_
+from config.explainer import Elements
+from models import GNNExplainerAdapter
+import matplotlib.pyplot as plt
+# import numpy as np
 
 parser = ap.ArgumentParser(description='Visualisation script')
 
@@ -11,21 +25,24 @@ args = parser.parse_args()
 
 sys.argv = sys.argv[:1]
 
-import torch
-import json
-import utils
-from rdkit import Chem
-from rdkit.Chem import Draw
-from torch_geometric.datasets import TUDataset
-from config.explainer import Path
-from config import filter
-from config.explainer import Elements
-from models import GNNExplainerAdapter
-import matplotlib.pyplot as plt
-import numpy as np
-
-Encoder   = utils.get_encoder(args.encoder)
+Encoder = utils.get_encoder(args.encoder)
 Explainer = GNNExplainerAdapter(Encoder, epochs=args.epochs)
+
+dataset = TUDataset(
+        Path.data('Balanced-Tox21'),
+        name='Tox21_AhR_training',
+        pre_filter=filter_
+    )
+
+
+with open(args.file, 'r') as f:
+    counterfacts = json.load(f)
+
+mols = []
+
+
+def rescale(value, min_, max_):
+    return (value - min_) / (max_ - min_)
 
 
 def inv_nll(log_v):
@@ -42,7 +59,7 @@ def mol_details(smiles, description="Molecule"):
         molecule.x.shape[0]
     ).long()
 
-    cert, _ = Encoder(molecule.x, molecule.edge_index, molecule.batch)
+    cert, encoding = Encoder(molecule.x, molecule.edge_index, molecule.batch)
     cert = cert.detach().squeeze()
 
     print(f"{description} {smiles}")
@@ -50,6 +67,46 @@ def mol_details(smiles, description="Molecule"):
     print(f"Class 1 certainty {inv_nll(cert[1].item()):.3f}")
 
     return molecule, smiles
+
+
+def sim(smiles):
+    molecule = utils.mol_to_pyg(
+        Chem.MolFromSmiles(smiles)
+    )
+
+    orig = utils.mol_to_pyg(
+        Chem.MolFromSmiles(counterfacts['original'])
+    )
+
+    molecule.batch = torch.zeros(
+        molecule.x.shape[0]
+    ).long()
+
+    orig.batch = torch.zeros(
+        orig.x.shape[0]
+    ).long()
+
+    _, encoding = Encoder(molecule.x, molecule.edge_index, molecule.batch)
+    _, og_encoding = Encoder(orig.x, orig.edge_index, orig.batch)
+
+    S = []
+    for mol in dataset:
+        if molecule.y == mol.y.item():
+            continue
+
+        mol.batch = torch.zeros(
+            mol.x.shape[0]
+        ).long()
+        _, enc_adv = Encoder(mol.x, mol.edge_index, mol.batch)
+
+        S.append(F.cosine_similarity(encoding, enc_adv).item())
+
+    max_ = 1
+    min_ = sum(S) / len(S)
+    # min_ = min(S)
+    sim = F.cosine_similarity(encoding, og_encoding).item()
+
+    print("Embedding similarity: ", rescale(sim, min_, max_))
 
 
 def show(smiles):
@@ -78,11 +135,6 @@ def gnn_explainer(sfx, mol):
     plt.show()
 
 
-with open(args.file, 'r') as f:
-    counterfacts = json.load(f)
-
-mols = []
-
 show(counterfacts['original'])
 
 gnn_explainer(
@@ -92,6 +144,7 @@ gnn_explainer(
 
 for mol in counterfacts['counterfacts']:
     mols.append(mol_details(mol['smiles']))
+    sim(mol['smiles'])
     show(mol['smiles'])
 
 for mol in mols:

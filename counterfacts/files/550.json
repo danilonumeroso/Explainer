@@ -1,0 +1,26 @@
+{
+  "original": "O=C(Nc1ccccc1SSc1ccccc1NC(=O)c1ccccc1)c1ccccc1",
+  "index": 550,
+  "counterfacts": [
+    {
+      "smiles": "O=C(Nc1ccccc1SSc1cccc2c1N2C(=O)c1ccccc1)c1ccccc1",
+      "score": 0.7265578462964013
+    },
+    {
+      "smiles": "O=C(Nc1ccccc1SSc1ccccc1N1C(=O)c2ccccc21)c1ccccc1",
+      "score": 0.7225253653526307
+    },
+    {
+      "smiles": "O=C(Nc1ccccc1SSC1=C2C=CC=C1N2C(=O)c1ccccc1)c1ccccc1",
+      "score": 0.6701807714277698
+    },
+    {
+      "smiles": "O=C(Nc1ccccc1SSc1c2cccc1N2C(=O)c1ccccc1)c1ccccc1",
+      "score": 0.6701807714277698
+    },
+    {
+      "smiles": "O=C(Nc1ccccc1SSc1cc2ccc1n2C(=O)c1ccccc1)c1ccccc1",
+      "score": 0.6498259067535401
+    }
+  ]
+}
