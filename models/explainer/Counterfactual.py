@@ -39,7 +39,7 @@ class Counterfactual(Molecule):
             utils.pyg_to_smiles(base_molecule)
         )
 
-        self.encoder = utils.get_encoder("Encoder")
+        self.encoder = utils.get_encoder("Tox21", "Encoder")
         self.base_molecule = base_molecule
         pred, self.base_encoding = self._encode(base_molecule)
 

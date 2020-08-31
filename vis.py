@@ -18,6 +18,7 @@ import matplotlib.pyplot as plt
 parser = ap.ArgumentParser(description='Visualisation script')
 
 parser.add_argument('--file', required=True)
+parser.add_argument('--dataset', required=True)
 parser.add_argument('--encoder', default='Encoder')
 parser.add_argument('--epochs', type=int, default=200)
 parser.add_argument('--figure', dest='figure', action='store_true')
@@ -25,15 +26,20 @@ args = parser.parse_args()
 
 sys.argv = sys.argv[:1]
 
-Encoder = utils.get_encoder(args.encoder)
+Encoder = utils.get_encoder(args.dataset, args.encoder)
 Explainer = GNNExplainerAdapter(Encoder, epochs=args.epochs)
 
-dataset = TUDataset(
+dataset = None
+
+if args.dataset == "Tox21":
+    dataset = TUDataset(
         Path.data('Balanced-Tox21'),
         name='Tox21_AhR_training',
         pre_filter=filter_
     )
 
+elif args.dataset == "Others":
+    dataset = None
 
 with open(args.file, 'r') as f:
     counterfacts = json.load(f)

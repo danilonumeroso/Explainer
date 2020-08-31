@@ -185,14 +185,15 @@ def mol_to_pyg(molecule):
     return pyg_mol
 
 
-def get_encoder(name="Encoder"):
+def get_encoder(dataset, name="Encoder"):
 
     if name == "Encoder":
         from models.encoder.Encoder import Encoder
 
         encoder = Encoder(50, 128, 2)
+        print("ckpt/" + dataset + "/Encoder.pth")
         encoder.load_state_dict(
-            torch.load("ckpt/Encoder.pth", map_location=torch.device('cpu'))
+            torch.load("ckpt/" + dataset + "/Encoder.pth", map_location=torch.device('cpu'))
         )
         encoder.eval()
         return encoder
