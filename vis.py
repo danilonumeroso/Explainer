@@ -3,6 +3,8 @@ import sys
 import torch
 import json
 import utils
+import re
+import os
 
 from torch.nn import functional as F
 from rdkit import Chem
@@ -22,9 +24,18 @@ parser.add_argument('--dataset', required=True)
 parser.add_argument('--encoder', default='Encoder')
 parser.add_argument('--epochs', type=int, default=200)
 parser.add_argument('--figure', dest='figure', action='store_true')
+parser.add_argument('--indexes', nargs='+', type=int,
+                    default=[0,1,2,3,4,5])
 args = parser.parse_args()
 
 sys.argv = sys.argv[:1]
+
+SAMPLE = re.findall("\d+\.json", args.file)[0]
+SAMPLE = re.findall("\d+", SAMPLE)[0]
+SAVE_DIR = "counterfacts/drawings/" + args.dataset + "/" + SAMPLE + "/"
+
+if not os.path.exists(SAVE_DIR):
+    os.mkdir(SAVE_DIR)
 
 Encoder = utils.get_encoder(args.dataset, args.encoder)
 Explainer = GNNExplainerAdapter(Encoder, epochs=args.epochs)
@@ -43,9 +54,6 @@ elif args.dataset == "Others":
 
 with open(args.file, 'r') as f:
     counterfacts = json.load(f)
-
-mols = []
-
 
 def rescale(value, min_, max_):
     return (value - min_) / (max_ - min_)
@@ -115,18 +123,19 @@ def sim(smiles):
     print("Embedding similarity: ", rescale(sim, min_, max_))
 
 
-def show(smiles):
-    if not args.figure:
-        return
+def show(i, smiles):
+    # if not args.figure:
+    #     return
 
     mol = Chem.MolFromSmiles(smiles)
-    Draw.MolToMPL(mol, centerIt=False)
-    plt.show()
+    Draw.MolToFile(mol, SAVE_DIR + SAMPLE + "." + str(i) + ".mol.svg")
+
+    # plt.show()
 
 
-def gnn_explainer(sfx, mol):
-    if not args.figure:
-        return
+def gnn_explainer(i, sfx, mol):
+    # if not args.figure:
+    #     return
 
     mol, smiles = mol
     _, edge_mask = Explainer.explain_graph(mol.x, mol.edge_index)
@@ -138,20 +147,34 @@ def gnn_explainer(sfx, mol):
 
     Explainer.visualize_subgraph(mol.edge_index, edge_mask,
                                  len(mol.x), labels=labels)
-    plt.show()
+
+    plt.savefig(SAVE_DIR + SAMPLE + "." + str(i) + ".expl.png")
+    plt.close()
 
 
-show(counterfacts['original'])
+def process_original_molecule():
+    if 0 not in args.indexes:
+        print("Orig skipped")
+        return
 
-gnn_explainer(
-    str(counterfacts['index']) + "_ORIGINAL",
-    mol_details(counterfacts['original'], "[ORIGINAL] ")
-)
+    show(0, counterfacts['original'])
 
-for mol in counterfacts['counterfacts']:
-    mols.append(mol_details(mol['smiles']))
-    sim(mol['smiles'])
-    show(mol['smiles'])
+    gnn_explainer(
+        0,
+        str(counterfacts['index']) + "_ORIGINAL",
+        mol_details(counterfacts['original'], "[ORIGINAL] ")
+    )
 
-for mol in mols:
-    gnn_explainer(str(counterfacts['index']), mol)
+def process_counterfactuals():
+    for i, mol in enumerate(counterfacts['counterfacts']):
+        if i+1 not in args.indexes:
+            print(str(i+1) + "-th skipped")
+            continue
+
+        md = mol_details(mol['smiles'])
+        sim(mol['smiles'])
+        show(i+1, mol['smiles'])
+        gnn_explainer(i+1, str(counterfacts['index']), md)
+
+process_original_molecule()
+process_counterfactuals()

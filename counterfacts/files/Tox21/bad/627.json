@@ -1,0 +1,26 @@
+{
+  "original": "Brc1c2ccccc2cc2ccccc12",
+  "index": 627,
+  "counterfacts": [
+    {
+      "smiles": "Brc1c2ccccc2cc2ccccc12",
+      "score": 0.2
+    },
+    {
+      "smiles": "Brc1ccc2cc3ccccc3c(Br)c2c1",
+      "score": 0.12432432432432433
+    },
+    {
+      "smiles": "Brc1ccc2c(Br)c3ccccc3cc2c1",
+      "score": 0.12432432432432433
+    },
+    {
+      "smiles": "Cc1ccc2cc3ccccc3c(Br)c2c1",
+      "score": 0.11794871794871796
+    },
+    {
+      "smiles": "Cc1ccc2c(Br)c3ccccc3cc2c1",
+      "score": 0.11794871794871796
+    }
+  ]
+}

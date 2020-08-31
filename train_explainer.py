@@ -13,11 +13,16 @@ def main():
 
     episodes = 0
 
-    dataset = TUDataset(
-        Path.data('Balanced-Tox21'),
-        name='Tox21_AhR_training',
-        pre_filter=filter
-    )
+    dataset = None
+
+    if Hyperparams.dataset == 'Tox21':
+        dataset = TUDataset(
+            Path.data('Balanced-Tox21'),
+            name='Tox21_AhR_training',
+            pre_filter=filter
+        )
+    else:
+        dataset = None
 
     molecule = dataset[Hyperparams.sample]
     molecule.batch = torch.zeros(
@@ -28,7 +33,8 @@ def main():
 
     utils.TopKCounterfactuals.init(
         utils.pyg_to_smiles(molecule),
-        Hyperparams.sample
+        Hyperparams.sample,
+        Hyperparams.dataset
     )
 
     atoms_ = [

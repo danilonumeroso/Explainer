@@ -22,7 +22,9 @@ class TopKCounterfactuals:
     K = 5
 
     @staticmethod
-    def init(original, index, k=5):
+    def init(original, index, dataset, k=5):
+
+        self.dataset = dataset
 
         TopKCounterfactuals.K = k
 
@@ -63,6 +65,7 @@ class TopKCounterfactuals:
 
         with open(
             Path.counterfacts(
+                self.dataset,
                 str(TopKCounterfactuals.Leaderboard['index']) + '.json'
             ),
             'w'

@@ -1,0 +1,26 @@
+{
+  "original": "O=C(O)C1C(=CCO)OC2CC(=O)N21.[LiH]",
+  "index": 615,
+  "counterfacts": [
+    {
+      "smiles": "O=C1CC2OC3=C(CO)C3(C(=O)O)N12.[LiH]",
+      "score": 0.5473496990819131
+    },
+    {
+      "smiles": "NC(CO)=C1OC2CC(=O)N2C1C(=O)O.[LiH]",
+      "score": 0.3202979512648149
+    },
+    {
+      "smiles": "O=C1CC2OC3=CC(O)C3(C(=O)O)N12.[LiH]",
+      "score": 0.2744936466217041
+    },
+    {
+      "smiles": "O=C(O)C1C2=C(CO)C3(CC(=O)N13)O2.[LiH]",
+      "score": 0.203897395966545
+    },
+    {
+      "smiles": "O=C(O)C1C(=CCO)OC2CC(=O)N21.[LiH]",
+      "score": 0.2
+    }
+  ]
+}

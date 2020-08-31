@@ -1,0 +1,26 @@
+{
+  "original": "Oc1c(Cl)c(Cl)c(Cl)c(Cl)c1Cl",
+  "index": 629,
+  "counterfacts": [
+    {
+      "smiles": "Oc1c(Cl)c(Cl)c(Cl)c(Cl)c1Cl",
+      "score": 0.2
+    },
+    {
+      "smiles": "OOc1c(Cl)c(Cl)c(Cl)c(Cl)c1Cl",
+      "score": 0.05833333333333334
+    },
+    {
+      "smiles": "ClOc1c(Cl)c(Cl)c(Cl)c(Cl)c1Cl",
+      "score": 0.05
+    },
+    {
+      "smiles": "COc1c(Cl)c(Cl)c(Cl)c(Cl)c1Cl",
+      "score": 0.048
+    },
+    {
+      "smiles": "Clc1cc(Cl)c(Cl)c(Cl)c1Cl",
+      "score": 0.04166666666666667
+    }
+  ]
+}

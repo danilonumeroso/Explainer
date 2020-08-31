@@ -1,0 +1,26 @@
+{
+  "original": "O=C1C(I)=CC(=C(c2cc(I)c(O)c(I)c2)c2ccccc2C(=O)O)C=C1I",
+  "index": 581,
+  "counterfacts": [
+    {
+      "smiles": "O=C1C(I)=CC(=C(c2cc(I)c(O)c(I)c2)c2ccccc2C(=O)O)C=C1I",
+      "score": 0.2
+    },
+    {
+      "smiles": "COc1c(I)cc(C(=C2C=C(I)C(=O)C(I)=C2)c2ccccc2C(=O)O)cc1I",
+      "score": 0.15000000000000002
+    },
+    {
+      "smiles": "O=C1C(I)=CC(=C(c2cc(I)c(OO)c(I)c2)c2ccccc2C(=O)O)C=C1I",
+      "score": 0.14426229508196722
+    },
+    {
+      "smiles": "O=C1C(I)=CC(=C(c2cc(I)c(OI)c(I)c2)c2ccccc2C(=O)O)C=C1I",
+      "score": 0.14426229508196722
+    },
+    {
+      "smiles": "COC(=O)c1ccccc1C(=C1C=C(I)C(=O)C(I)=C1)c1cc(I)c(O)c(I)c1",
+      "score": 0.14193548387096774
+    }
+  ]
+}

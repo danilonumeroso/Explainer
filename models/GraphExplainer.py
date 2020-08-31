@@ -1,6 +1,7 @@
 import torch
 import networkx as nx
 import matplotlib.pyplot as plt
+import numpy as np
 
 from torch_geometric.data import Data
 from torch_geometric.nn import GNNExplainer
@@ -110,13 +111,17 @@ class GNNExplainerAdapter(GNNExplainer):
         data.num_nodes = num_nodes
         G = to_networkx(data, edge_attrs=['att'])
 
-        kwargs['with_labels'] = kwargs.get('with_labels') or True
+        # kwargs['with_labels'] = kwargs.get('with_labels') or True
         kwargs['font_size'] = kwargs.get('font_size') or 10
-        kwargs['node_size'] = kwargs.get('node_size') or 800
-        kwargs['cmap'] = kwargs.get('cmap') or 'cool'
+        node_size = kwargs.get('node_size') or 800
+        # kwargs['cmap'] = kwargs.get('cmap') or 'cool'
 
-        pos = nx.spring_layout(G)
+        pos = nx.rescale_layout_dict(nx.spring_layout(G))
+
         ax = plt.gca()
+        ax.set_xlim((-1.1, 1.1))
+        ax.set_ylim((-1.1, 1.1))
+
         for source, target, data in G.edges(data=True):
             ax.annotate(
                 '',
@@ -126,10 +131,10 @@ class GNNExplainerAdapter(GNNExplainer):
                 textcoords='data', arrowprops=dict(
                     arrowstyle="-",
                     alpha=max(data['att'], 0.1),
-                    shrinkA=sqrt(kwargs['node_size']) / 2.0,
-                    shrinkB=sqrt(kwargs['node_size']) / 2.0,
+                    shrinkA=sqrt(node_size) / 2.0,
+                    shrinkB=sqrt(node_size) / 2.0,
                     connectionstyle="arc3,rad=0.00",
                 ))
-        nx.draw_networkx_labels(G, pos, **kwargs)
 
+        nx.draw_networkx_labels(G, pos, **kwargs)
         return ax, G

@@ -1,0 +1,26 @@
+{
+  "original": "CC1(C)C(C(=O)O)N2C(=O)CC2S1(=O)=O",
+  "index": 609,
+  "counterfacts": [
+    {
+      "smiles": "CC1(C)C(C(=O)O)N2C(=O)CC2(N)S1(=O)=O",
+      "score": 0.6806658341334416
+    },
+    {
+      "smiles": "CC12CC3(CC(=O)N3C1C(=O)O)S2(=O)=O",
+      "score": 0.6711992670904916
+    },
+    {
+      "smiles": "CC12CC1(C(=O)O)N1C(=O)CC1S2(=O)=O",
+      "score": 0.6195551831767244
+    },
+    {
+      "smiles": "CC1(C)C(C(=O)O)N2C(=O)CC2(S)S1(=O)=O",
+      "score": 0.285145194713886
+    },
+    {
+      "smiles": "CC1(C)C(C(=O)O)N2C(=O)CC2S1(=O)=O",
+      "score": 0.2
+    }
+  ]
+}

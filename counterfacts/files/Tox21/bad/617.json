@@ -1,0 +1,26 @@
+{
+  "original": "BrC1CCC(Br)C(Br)CCC(Br)C(Br)CCC1Br",
+  "index": 617,
+  "counterfacts": [
+    {
+      "smiles": "BrC1CCC(Br)C(Br)CCC(Br)C(Br)CCC1Br",
+      "score": 0.2
+    },
+    {
+      "smiles": "BrC1C=CC(Br)C(Br)CCC(Br)C(Br)CCC1Br",
+      "score": 0.1
+    },
+    {
+      "smiles": "BrC1C#CC(Br)C(Br)CCC(Br)C(Br)CCC1Br",
+      "score": 0.1
+    },
+    {
+      "smiles": "BrC1=C(Br)CCC(Br)C(Br)CCC(Br)C(Br)CC1",
+      "score": 0.09523809523809523
+    },
+    {
+      "smiles": "BrC1CCC(Br)C(Br)CC(Br)C(Br)C(Br)CCC1Br",
+      "score": 0.08333333333333334
+    }
+  ]
+}

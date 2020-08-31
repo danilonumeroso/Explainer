@@ -28,7 +28,8 @@ _Hyperparams = namedtuple(
         'batch_size',
         'num_updates_per_it',
         'update_interval',
-        'num_counterfactuals'
+        'num_counterfactuals',
+        'dataset'
     ]
 )
 
@@ -72,6 +73,7 @@ def Args():
     parser.add_argument('--discount', type=bool, default=0.9)
     parser.add_argument('--epochs', type=int, default=200000)
     parser.add_argument('--num_counterfactuals', type=int, default=5)
+    parser.add_argument('--dataset', choices=['Tox21'], required=True)
 
     args = parser.parse_args()
 
@@ -99,7 +101,8 @@ def Args():
         batch_size=1,
         num_updates_per_it=1,
         update_interval=1,
-        num_counterfactuals=args.num_counterfactuals
+        num_counterfactuals=args.num_counterfactuals,
+        dataset=args.dataset
     )
 
 
@@ -113,6 +116,6 @@ _BasePath = path.normpath(path.join(
 
 Path = _Path(
     data=lambda x: path.join(_BasePath, 'data', x),
-    counterfacts=lambda x: path.join(_BasePath, 'counterfacts', 'files', x),
-    drawings=lambda x: path.join(_BasePath, 'counterfacts', 'drawings', x),
+    counterfacts=lambda x, d: path.join(_BasePath, 'counterfacts', d, 'files', x),
+    drawings=lambda x, d: path.join(_BasePath, 'counterfacts', d, 'drawings', x),
 )
