@@ -1,0 +1,26 @@
+{
+  "original": "CC(=O)SC1CC2=CC(=O)CCC2(C)C2CCC3(C)C(CCC34CCC(=O)O4)C12",
+  "index": 648,
+  "counterfacts": [
+    {
+      "smiles": "CC(=O)SC1CC2=CC(=O)CCC2(C)C2CCC3(C)C(CCC34CCC(=O)O4)C12",
+      "score": 0.2
+    },
+    {
+      "smiles": "CC12CCC(=O)C=C1CC(SC(=O)C=O)C1C2CCC2(C)C1CCC21CCC(=O)O1",
+      "score": 0.1609756097560976
+    },
+    {
+      "smiles": "CC12CCC(=O)C=C1CC(SC(=O)C#[SH])C1C2CCC2(C)C1CCC21CCC(=O)O1",
+      "score": 0.1609756097560976
+    },
+    {
+      "smiles": "CCC(=O)SC1CC2=CC(=O)CCC2(C)C2CCC3(C)C(CCC34CCC(=O)O4)C12",
+      "score": 0.1609756097560976
+    },
+    {
+      "smiles": "C=CC(=O)SC1CC2=CC(=O)CCC2(C)C2CCC3(C)C(CCC34CCC(=O)O4)C12",
+      "score": 0.1609756097560976
+    }
+  ]
+}

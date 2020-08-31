@@ -148,7 +148,9 @@ def gnn_explainer(i, sfx, mol):
     Explainer.visualize_subgraph(mol.edge_index, edge_mask,
                                  len(mol.x), labels=labels)
 
-    plt.savefig(SAVE_DIR + SAMPLE + "." + str(i) + ".expl.png")
+    plt.axis('off')
+    filename = SAVE_DIR + SAMPLE + "." + str(i) + ".expl.svg"
+    plt.savefig(filename, bbox_inches='tight')
     plt.close()
 
 

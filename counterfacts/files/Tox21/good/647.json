@@ -1,0 +1,26 @@
+{
+  "original": "CC=C(C)C=CC=C(C)C",
+  "index": 647,
+  "counterfacts": [
+    {
+      "smiles": "CC(C)=C1C=CC(C)=C1C",
+      "score": 0.6707403341929119
+    },
+    {
+      "smiles": "CC1=CCC(=C(C)C)C=C1",
+      "score": 0.6524545332280601
+    },
+    {
+      "smiles": "CC(C)=CC=C1C(C)=C1C",
+      "score": 0.5616039752960205
+    },
+    {
+      "smiles": "CC=C1C=CC(=C(C)C)C1",
+      "score": 0.5333907415992335
+    },
+    {
+      "smiles": "CC=C(C)C1=CC1=C(C)C",
+      "score": 0.5102965222464667
+    }
+  ]
+}

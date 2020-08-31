@@ -1,0 +1,26 @@
+{
+  "original": "ClC1=C(Cl)C2(Cl)C3C4C=CC(C4)C3C1(Cl)C2(Cl)Cl",
+  "index": 640,
+  "counterfacts": [
+    {
+      "smiles": "ClC1=C(Cl)C2(Cl)C3C4C=CC(C4)C3C1(Cl)C2(Cl)Cl",
+      "score": 0.2
+    },
+    {
+      "smiles": "ClC1=CC2CC1C1C2C2(Cl)C(Cl)=C(Cl)C1(Cl)C2(Cl)Cl",
+      "score": 0.09130434782608696
+    },
+    {
+      "smiles": "CC1=CC2CC1C1C2C2(Cl)C(Cl)=C(Cl)C1(Cl)C2(Cl)Cl",
+      "score": 0.08750000000000001
+    },
+    {
+      "smiles": "CC1CC(C)C2C1C1(Cl)C(Cl)=C(Cl)C2(Cl)C1(Cl)Cl",
+      "score": 0.08717948717948719
+    },
+    {
+      "smiles": "ClC1=C(Cl)C2(Cl)C3C4CCC(C4)C3C1(Cl)C2(Cl)Cl",
+      "score": 0.085
+    }
+  ]
+}

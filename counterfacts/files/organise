@@ -4,7 +4,6 @@ DIR=$1
 cd $DIR
 
 for file in *.json; do
-
     if cat $file | grep -q "0\.[3-9]"; then
         mv $file good
     else

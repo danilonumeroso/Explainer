@@ -1,0 +1,26 @@
+{
+  "original": "CC(C)(C)c1ccc(CSC2=C(Cl)C(=O)N(C(C)(C)C)N=C2)cc1",
+  "index": 637,
+  "counterfacts": [
+    {
+      "smiles": "CC(C)(C)c1ccc(CSc2cnn(C(C)(C)C)c(=O)c2Cl)cc1",
+      "score": 0.2
+    },
+    {
+      "smiles": "CC(C)(C=O)c1ccc(CSc2cnn(C(C)(C)C)c(=O)c2Cl)cc1",
+      "score": 0.1540983606557377
+    },
+    {
+      "smiles": "CC(C)(CCl)c1ccc(CSc2cnn(C(C)(C)C)c(=O)c2Cl)cc1",
+      "score": 0.1540983606557377
+    },
+    {
+      "smiles": "CCC(C)(C)c1ccc(CSc2cnn(C(C)(C)C)c(=O)c2Cl)cc1",
+      "score": 0.1540983606557377
+    },
+    {
+      "smiles": "CC(C)(CS)c1ccc(CSc2cnn(C(C)(C)C)c(=O)c2Cl)cc1",
+      "score": 0.15161290322580645
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "original": "CCCCC(=O)OCC(=O)C1(O)Cc2c(O)c3c(c(O)c2C(OC2CC(NC(=O)C(F)(F)F)C(O)C(C)O2)C1)C(=O)c1c(OC)cccc1C3=O",
+  "index": 683,
+  "counterfacts": [
+    {
+      "smiles": "CCCCC(=O)OCC(=O)C1(O)Cc2c(O)c3c(c(O)c2C(OC2CC(NC(=O)C(F)(F)F)C(O)C(C)O2)C1)C(=O)c1c(OC)cccc1C3=O",
+      "score": 0.2
+    },
+    {
+      "smiles": "CCCCCC(=O)OCC(=O)C1(O)Cc2c(O)c3c(c(O)c2C(OC2CC(NC(=O)C(F)(F)F)C(O)C(C)O2)C1)C(=O)c1c(OC)cccc1C3=O",
+      "score": 0.18720000000000003
+    },
+    {
+      "smiles": "CCCC(=O)OCC(=O)C1(O)Cc2c(O)c3c(c(O)c2C(OC2CC(NC(=O)C(F)(F)F)C(O)C(C)O2)C1)C(=O)c1c(OC)cccc1C3=O",
+      "score": 0.18387096774193548
+    },
+    {
+      "smiles": "COc1cccc2c1C(=O)c1c(O)c3c(c(O)c1C2=O)CC(O)(C(=O)COC(=O)CCCCO)CC3OC1CC(NC(=O)C(F)(F)F)C(O)C(C)O1",
+      "score": 0.1796875
+    },
+    {
+      "smiles": "COc1cccc2c1C(=O)c1c(O)c3c(c(O)c1C2=O)CC(O)(C(=O)COC(=O)CCCCF)CC3OC1CC(NC(=O)C(F)(F)F)C(O)C(C)O1",
+      "score": 0.1796875
+    }
+  ]
+}

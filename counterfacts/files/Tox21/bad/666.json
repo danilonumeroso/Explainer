@@ -1,0 +1,26 @@
+{
+  "original": "CCC(C(=O)C(C)C(O)C(C)CCc1ccc(C)c(O)c1C(=O)O)C1OC(CC)(C2CCC(O)(CC)C(C)O2)CC1C.[NaH]",
+  "index": 666,
+  "counterfacts": [
+    {
+      "smiles": "CCC(C(=O)C(C)C(O)C(C)CCc1ccc(C)c(O)c1C(=O)O)C1OC(CC)(C2CCC(O)(CC)C(C)O2)CC1C.[NaH]",
+      "score": 0.2
+    },
+    {
+      "smiles": "CCCC1(O)CCC(C2(CC)CC(C)C(C(CC)C(=O)C(C)C(O)C(C)CCc3ccc(C)c(O)c3C(=O)O)O2)OC1C.[NaH]",
+      "score": 0.17735849056603775
+    },
+    {
+      "smiles": "C=CCC1(O)CCC(C2(CC)CC(C)C(C(CC)C(=O)C(C)C(O)C(C)CCc3ccc(C)c(O)c3C(=O)O)O2)OC1C.[NaH]",
+      "score": 0.17592592592592593
+    },
+    {
+      "smiles": "CCC(C(=O)C(C)C(O)C(C)CCc1ccc(C)c(O)c1C(=O)O)C1OC(CC)(C2CCC(O)(CCO)C(C)O2)CC1C.[NaH]",
+      "score": 0.17570093457943925
+    },
+    {
+      "smiles": "CCC(C(=O)C(C)C(O)C(C)CCc1ccc(C)c(O)c1C(=O)O)C1OC(CC)(C2CCC(O)(CC=O)C(C)O2)CC1C.[NaH]",
+      "score": 0.17407407407407408
+    }
+  ]
+}

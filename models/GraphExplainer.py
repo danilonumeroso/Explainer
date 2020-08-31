@@ -68,7 +68,7 @@ class GNNExplainerAdapter(GNNExplainer):
         self.__set_masks__(x, edge_index)
         self.to(x.device)
 
-        print(log_logits)
+        # print(log_logits)
         optimizer = torch.optim.Adam([self.node_feat_mask, self.edge_mask],
                                      lr=self.lr)
 
@@ -116,13 +116,14 @@ class GNNExplainerAdapter(GNNExplainer):
         node_size = kwargs.get('node_size') or 800
         # kwargs['cmap'] = kwargs.get('cmap') or 'cool'
 
-        pos = nx.rescale_layout_dict(nx.spring_layout(G))
+        SCALE = 2
+        pos = nx.rescale_layout_dict(nx.kamada_kawai_layout(G), scale=SCALE)
 
         ax = plt.gca()
-        ax.set_xlim((-1.1, 1.1))
-        ax.set_ylim((-1.1, 1.1))
+        ax.set_xlim((-SCALE - 0.1, SCALE + 0.1))
+        ax.set_ylim((-SCALE - 0.1, SCALE + 0.1))
 
-        for source, target, data in G.edges(data=True):
+        for source, target, data in G.to_undirected().edges(data=True):
             ax.annotate(
                 '',
                 xy=pos[target],
