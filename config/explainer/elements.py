@@ -52,6 +52,9 @@ class Elements(Enum):
     Yb = 47
     Mo = 48
     Ge = 49
+    Ru = 50
+    Eu = 51
+    Sc = 52
 
 
 def Edges(bond_type):

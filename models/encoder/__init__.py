@@ -1,2 +1,3 @@
-from .Encoder import Encoder
-from .EncoderV2 import EncoderV2
+from .GCNN import GCNN
+from .CGCNN import CGCNN
+from .EncoderESOL import EncoderESOL

@@ -1,45 +1,30 @@
-# import torch
-# import torch.nn.functional as F
 import utils
 
 from rdkit import Chem, DataStructs
 from models.explainer.Environment import Molecule
-
+from config.explainer import Args
 
 class Counterfactual(Molecule):
-    """The molecule whose reward is the QED."""
-
     def __init__(
         self,
         discount_factor,
+        mol_fp,
         base_molecule,
         counterfactual_class,
         weight_sim=0.5,
         **kwargs
     ):
-        """
-        Initializes the class.
-
-        Args:
-
-        * discount_factor: Float. The discount factor. We only
-        care about the molecule at the end of modification.
-        In order to prevent a myopic decision, we discount
-        the reward at each step by a factor of
-        discount_factor ** num_steps_left,
-        this encourages exploration with emphasis on long term rewards.
-        **kwargs: The keyword arguments passed to the base class.
-
-        """
         super(Counterfactual, self).__init__(**kwargs)
+
+        Hyperparams = Args()
+
+        self.fp_length = Hyperparams.fingerprint_length
+        self.fp_radius = Hyperparams.fingerprint_radius
 
         self.counterfactual_class = counterfactual_class
 
-        self.mol_fp = utils.morgan_fingerprint(
-            utils.pyg_to_smiles(base_molecule)
-        )
-
-        self.encoder = utils.get_encoder("Tox21", "Encoder")
+        self.mol_fp = mol_fp
+        self.encoder = utils.get_encoder("Tox21", Hyperparams.experiment)
         self.base_molecule = base_molecule
         pred, self.base_encoding = self._encode(base_molecule)
 
@@ -49,7 +34,9 @@ class Counterfactual(Molecule):
 
         self._similarity = lambda mol1, fp2: \
             DataStructs.TanimotoSimilarity(
-                utils.morgan_fingerprint(mol1),
+                utils.morgan_fingerprint(mol1,
+                                         self.fp_length,
+                                         self.fp_radius),
                 fp2
             )
 

@@ -1,26 +1,32 @@
-import torch.nn as nn
+import torch
+from torch.nn import functional as F
 
-class MolDQN(nn.Module):
+class MolDQN(torch.nn.Module):
     def __init__(
             self,
-            input_length,
-            output_length
+            num_input,
+            num_output
     ):
         super(MolDQN, self).__init__()
+        self.layers = torch.nn.ModuleList([])
 
-        self.linear1 = nn.Linear(input_length, 1024)
-        self.linear2 = nn.Linear(1024, 512)
-        self.linear3 = nn.Linear(512, 128)
-        self.linear4 = nn.Linear(128, 32)
-        self.linear5 = nn.Linear(32, output_length)
+        hs = [1024, 512, 128, 32]
 
-        self.activation = nn.ReLU()
+        N = len(hs)
+
+        for i in range(N - 1):
+            h, h_next  = hs[i], hs[i+1]
+            dim_input  = num_input if i == 0 else h
+
+            self.layers.append(
+                torch.nn.Linear(dim_input, h_next)
+            )
+        self.out = torch.nn.Linear(hs[-1], num_output)
 
     def forward(self, x):
-        x = self.activation(self.linear1(x))
-        x = self.activation(self.linear2(x))
-        x = self.activation(self.linear3(x))
-        x = self.activation(self.linear4(x))
-        x = self.linear5(x)
+        for layer in self.layers:
+            x = F.relu(layer(x))
+
+        x = self.out(x)
 
         return x

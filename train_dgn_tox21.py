@@ -1,0 +1,117 @@
+import torch
+import torch.nn.functional as F
+import os
+import os.path as osp
+import torchvision
+
+from torch_geometric.datasets import TUDataset
+from torch_geometric.data import DataLoader
+from torch_geometric.utils import precision, recall
+from torch_geometric.utils import f1_score, accuracy
+from torch.utils.tensorboard import SummaryWriter
+
+from models.encoder import GCNN
+from config.encoder import Args, Path
+from config import filter
+
+from utils import preprocess
+
+Hyperparams = Args()
+
+BasePath = './runs/tox21/' + Hyperparams.experiment_name
+if not osp.exists(BasePath):
+    os.makedirs(BasePath + "/ckpt")
+
+writer = SummaryWriter(BasePath)
+
+train_loader, test_loader, *extra = preprocess('tox21', Hyperparams)
+train_ds, val_ds, num_features, num_classes = extra
+
+len_train = len(train_ds)
+len_val   = len(val_ds)
+
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+model = GCNN(
+    num_input=num_features,
+    num_hidden=Hyperparams.hidden_size,
+    num_output=num_classes,
+    dropout=0.4
+).to(device)
+
+optimizer = Hyperparams.optimizer(
+    model.parameters(),
+    lr=Hyperparams.lr
+)
+
+def train(epoch):
+    model.train()
+
+    loss_all = 0
+    for data in train_loader:
+        data = data.to(device)
+        optimizer.zero_grad()
+        output, _ = model(data.x, data.edge_index, batch=data.batch)
+        loss = F.nll_loss(F.log_softmax(output, dim=-1), data.y, weight=Hyperparams.weight.to(device))
+        loss.backward()
+        loss_all += data.num_graphs * loss.item()
+        optimizer.step()
+
+    return loss_all / len_train
+
+def test(loader):
+    model.eval()
+
+    y = torch.tensor([]).long().to(device)
+    yp = torch.tensor([]).long().to(device)
+
+    loss_all = 0
+    for data in loader:
+        data = data.to(device)
+
+        pred, _ = model(data.x, data.edge_index, batch=data.batch)
+        loss = F.nll_loss(F.log_softmax(pred, dim=-1), data.y, weight=Hyperparams.weight.to(device))
+        pred = pred.max(dim=1)[1]
+
+        y = torch.cat([y, data.y])
+        yp = torch.cat([yp, pred])
+
+        loss_all += data.num_graphs * loss.item()
+
+    return (
+        accuracy(y, yp),
+        precision(y, yp, num_classes).mean().item(),
+        recall(y, yp, num_classes).mean().item(),
+        f1_score(y, yp, num_classes).mean().item(),
+        loss_all
+    )
+
+
+best_acc = (0, 0)
+for epoch in range(Hyperparams.epochs):
+    loss = train(epoch)
+    writer.add_scalar('Loss/train', loss, epoch)
+    train_acc, train_prec, train_rec, train_f1, _ = test(train_loader)
+    val_acc, val_prec, val_rec, val_f1, l = test(test_loader)
+
+    writer.add_scalar('Accuracy/train', train_acc, epoch)
+    writer.add_scalar('Accuracy/val', val_acc, epoch)
+    writer.add_scalar('Loss/val', l / len_val, epoch)
+
+    print(f'Epoch: {epoch}, Loss: {loss:.5f}')
+
+    print(f'Train -> Acc: {train_acc:.5f}  Rec: {train_rec:.5f}  \
+    Prec: {train_prec:.5f}  F1: {train_f1:.5f}')
+
+    print(f'Val -> Acc: {val_acc:.5f}  Rec: {val_rec:.5f}  \
+    Prec: {val_prec:.5f}  F1: {val_f1:.5f}')
+
+    if best_acc[1] < val_acc:
+        best_acc = train_acc, val_acc
+
+        torch.save(
+            model.state_dict(),
+            osp.join(BasePath+'/ckpt/',
+                     model.__class__.__name__ + ".pth")
+        )
+        print("New best model saved!")

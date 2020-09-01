@@ -6,7 +6,7 @@ from config.explainer import Args
 
 
 class Agent(object):
-    def __init__(self, input_length, output_length, device):
+    def __init__(self, num_input, num_output, device):
 
         Hyperparams = Args()
         REPLAY_BUFFER_CAPACITY = Hyperparams.replay_buffer_size
@@ -14,8 +14,8 @@ class Agent(object):
         self.device = device
 
         self.dqn, self.target_dqn = (
-            MolDQN(input_length, output_length).to(self.device),
-            MolDQN(input_length, output_length).to(self.device)
+            MolDQN(num_input, num_output).to(self.device),
+            MolDQN(num_input, num_output).to(self.device)
         )
 
         for p in self.target_dqn.parameters():
@@ -45,9 +45,7 @@ class Agent(object):
     def update_params(self, batch_size, gamma, polyak):
 
         Hyperparams = Args()
-        # update target network
 
-        # sample batch of transitions
         states, _, rewards, next_states, dones = \
             self.replay_buffer.sample(batch_size)
 
@@ -76,7 +74,7 @@ class Agent(object):
         v_tp1 = v_tp1.to(self.device)
         dones = torch.FloatTensor(dones).reshape(q_t.shape).to(self.device)
 
-        # # get q values
+        # get q values
         q_tp1_masked = (1 - dones) * v_tp1
         q_t_target = rewards + gamma * q_tp1_masked
         td_error = q_t - q_t_target
@@ -88,14 +86,13 @@ class Agent(object):
         )
         q_loss = q_loss.mean()
 
-        # backpropagate
         self.optimizer.zero_grad()
         q_loss.backward()
         self.optimizer.step()
 
         with torch.no_grad():
-            for p, p_targ in zip(self.dqn.parameters(), self.target_dqn.parameters()):
-                p_targ.data.mul_(polyak)
-                p_targ.data.add_((1 - polyak) * p.data)
+            for p, pt in zip(self.dqn.parameters(), self.target_dqn.parameters()):
+                pt.data.mul_(polyak)
+                pt.data.add_((1 - polyak) * p.data)
 
         return q_loss

@@ -1,5 +1,0 @@
-#!/bin/bash
-
-for file in counterfacts/files/Tox21/good/*.json; do
-    python vis.py --file $file --dataset Tox21 --figure
-done

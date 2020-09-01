@@ -136,3 +136,4 @@ runs/
 .copyfile
 .copymodel
 .rsync
+counterfacts/

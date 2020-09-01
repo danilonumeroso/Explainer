@@ -1,1 +1,2 @@
-from .GraphExplainer import GNNExplainerAdapter
+from .GraphExplainerTox21 import GNNExplainerAdapter as GNNExplainerTox21
+from .GraphExplainerESOL import GNNExplainerAdapter as GNNExplainerESOL
