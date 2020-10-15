@@ -176,24 +176,29 @@ def mol_to_esol_pyg(mol):
 
 def get_encoder(dataset, experiment):
     from models.encoder.GCNN import GCNN
+    import json
 
-    BasePath = 'runs/' + dataset.lower() + "/" + experiment + '/ckpt'
+    BasePath = 'runs/' + dataset.lower() + "/" + experiment
 
-    if dataset == "Tox21":
-        m = GCNN(50, 128, 2)
+    params = None
+    with open(BasePath + '/hyperparams.json') as file:
+        params = json.load(file)
+
+    if dataset.lower() == "tox21":
+        m = GCNN(params['num_input'], params['num_hidden'], params['num_output'])
         m.load_state_dict(
             torch.load(
-                BasePath + "/GCNN.pth",
+                BasePath + "/ckpt/GCNN.pth",
                 map_location=torch.device('cpu')
             )
         )
         m.eval()
         return m
-    elif dataset == "ESOL":
-        m = GCNN(9, 128, 1)
+    elif dataset.lower() == "esol":
+        m = GCNN(params['num_input'], params['num_hidden'], params['num_output'])
         m.load_state_dict(
             torch.load(
-                BasePath + "/GCNN.pth",
+                BasePath + "/ckpt/GCNN.pth",
                 map_location=torch.device('cpu')
             ),
 

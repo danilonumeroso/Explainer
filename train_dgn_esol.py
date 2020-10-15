@@ -2,16 +2,11 @@ import torch
 import torch.nn.functional as F
 import os
 import os.path as osp
-import torchvision
+import json
 
-from torch_geometric.datasets import MoleculeNet
-from torch_geometric.data import DataLoader
-from torch_geometric.utils import precision, recall
-from torch_geometric.utils import f1_score, accuracy
 from torch.utils.tensorboard import SummaryWriter
-
 from models.encoder import GCNN
-from config.encoder import Args, Path
+from config.encoder import Args
 from utils import preprocess
 
 Hyperparams = Args()
@@ -26,21 +21,31 @@ train_loader, test_loader, *extra = preprocess('esol', Hyperparams)
 train_ds, val_ds, num_features, num_classes = extra
 
 len_train = len(train_ds)
-len_val   = len(val_ds)
+len_val = len(val_ds)
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+dropout = 0.1
 
 model = GCNN(
     num_input=num_features,
     num_hidden=Hyperparams.hidden_size,
     num_output=num_classes,
-    dropout=0.1
+    dropout=dropout
 ).to(device)
 
 optimizer = Hyperparams.optimizer(
     model.parameters(),
     lr=Hyperparams.lr
 )
+
+
+with open(BasePath + '/hyperparams.json', 'w') as outfile:
+    json.dump({'num_input': num_features,
+               'num_hidden': Hyperparams.hidden_size,
+               'num_output': num_classes,
+               'dropout': dropout}, outfile)
+
 
 def train(epoch):
     model.train()
