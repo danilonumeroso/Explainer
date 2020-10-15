@@ -22,7 +22,8 @@ parser.add_argument('--file', required=True)
 parser.add_argument('--epochs', type=int, default=200)
 parser.add_argument('--experiment', default='test')
 parser.add_argument('--seed', default=0)
-parser.add_argument('--test_split', default=.1)
+parser.add_argument('--test_split', type=int, default=10)
+parser.add_argument('--batch_size', type=int, default=1)
 parser.add_argument('--figure', dest='figure', action='store_true')
 parser.add_argument('--indexes', nargs='+', type=int,
                     default=[0,1,2,3,4,5])
@@ -37,7 +38,7 @@ SAVE_DIR = "counterfacts/drawings/Tox21/" + SAMPLE + "/"
 if not os.path.exists(SAVE_DIR):
     os.mkdir(SAVE_DIR)
 
-Encoder = get_encoder("Tox21")
+Encoder = get_encoder("Tox21", args.experiment)
 Explainer = GNNExplainerTox21(Encoder, epochs=args.epochs)
 
 *_, train, val, _, _  = preprocess('tox21', args)
@@ -66,8 +67,7 @@ def mol_details(smiles, description="Molecule"):
     ).long()
 
     cert, encoding = Encoder(molecule.x, molecule.edge_index, molecule.batch)
-    cert = cert.detach().squeeze()
-
+    cert = F.log_softmax(cert).detach().squeeze()
     print(f"{description} {smiles}")
     print(f"Class 0 certainty {inv_nll(cert[0].item()):.3f}")
     print(f"Class 1 certainty {inv_nll(cert[1].item()):.3f}")

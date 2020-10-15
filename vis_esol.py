@@ -20,6 +20,10 @@ parser = ap.ArgumentParser(description='Visualisation script')
 
 parser.add_argument('--file', required=True)
 parser.add_argument('--epochs', type=int, default=200)
+parser.add_argument('--experiment', default='test')
+parser.add_argument('--seed', default=0)
+parser.add_argument('--test_split', type=int, default=10)
+parser.add_argument('--batch_size', type=int, default=1)
 parser.add_argument('--figure', dest='figure', action='store_true')
 parser.add_argument('--indexes', nargs='+', type=int,
                     default=[0,1,2,3,4,5])
@@ -34,13 +38,10 @@ SAVE_DIR = "counterfacts/drawings/ESOL/" + SAMPLE + "/"
 if not os.path.exists(SAVE_DIR):
     os.mkdir(SAVE_DIR)
 
-Encoder = utils.get_encoder("ESOL")
+Encoder = utils.get_encoder("ESOL", args.experiment)
 Explainer = GNNExplainerESOL(Encoder, epochs=args.epochs)
 
-dataset = MoleculeNet(
-        Path.data('MoleculeNet'),
-        name='ESOL'
-    )
+*_, train, val, _, _  = preprocess('tox21', args)
 
 with open(args.file, 'r') as f:
     counterfacts = json.load(f)
@@ -52,10 +53,9 @@ Original = {
 }
 
 
+assert val[int(SAMPLE)].smiles == counterfacts['original']
 
-assert dataset[int(SAMPLE)].smiles == counterfacts['original']
-
-Target = dataset[int(SAMPLE)].y.detach()[0]
+Target = val[int(SAMPLE)].y.detach()[0]
 
 Original['pred'], Original['enc'] = Encoder(Original['mol'].x,
                                             Original['mol'].edge_index,
@@ -102,9 +102,6 @@ def show(i, smiles):
 
     mol = Chem.MolFromSmiles(smiles)
     Draw.MolToFile(mol, SAVE_DIR + SAMPLE + "." + str(i) + ".mol.svg")
-
-    # plt.show()
-
 
 def gnn_explainer(i, sfx, mol):
     if not args.figure:
@@ -156,7 +153,6 @@ def process_counterfactuals():
             continue
 
         md = mol_details(cf['smiles'], cf)
-        # sim(mol['smiles'])
         show(i+1, cf['smiles'])
         gnn_explainer(i+1, str(counterfacts['index']), md)
 
