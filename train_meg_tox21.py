@@ -12,8 +12,8 @@ from utils import preprocess
 
 def main():
     Hyperparams = Args()
-
-    writer = SummaryWriter("./runs/tox21/expl/")
+    BasePath = './runs/tox21/' + Hyperparams.experiment
+    writer = SummaryWriter(BasePath + '/plots')
     episodes = 0
 
 

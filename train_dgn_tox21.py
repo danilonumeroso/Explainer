@@ -16,8 +16,12 @@ Hyperparams = Args()
 BasePath = './runs/tox21/' + Hyperparams.experiment_name
 if not osp.exists(BasePath):
     os.makedirs(BasePath + "/ckpt")
+    os.makedirs(BasePath + "/plots")
+else:
+    os.removedirs(BasePath + "/plots")
+    os.makedirs(BasePath + "/plots")
 
-writer = SummaryWriter(BasePath)
+writer = SummaryWriter(BasePath + '/plots')
 
 train_loader, test_loader, *extra = preprocess('tox21', Hyperparams)
 train_ds, val_ds, num_features, num_classes = extra
@@ -119,3 +123,13 @@ for epoch in range(Hyperparams.epochs):
                      model.__class__.__name__ + ".pth")
         )
         print("New best model saved!")
+
+        with open(BasePath + '/best_result.json', 'w') as outfile:
+            json.dump({'train_acc': train_acc,
+                       'val_acc': val_acc,
+                       'train_rec': train_rec,
+                       'val_rec': val_rec,
+                       'train_f1': train_f1,
+                       'val_f1': val_f1,
+                       'train_prec': train_prec,
+                       'val_prec': val_prec}, outfile)

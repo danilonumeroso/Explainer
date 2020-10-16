@@ -14,8 +14,12 @@ Hyperparams = Args()
 BasePath = './runs/esol/' + Hyperparams.experiment_name
 if not osp.exists(BasePath):
     os.makedirs(BasePath + "/ckpt")
+    os.makedirs(BasePath + "/plots")
+else:
+    os.removedirs(BasePath + "/plots")
+    os.makedirs(BasePath + "/plots")
 
-writer = SummaryWriter(BasePath)
+writer = SummaryWriter(BasePath + '/plots')
 
 train_loader, test_loader, *extra = preprocess('esol', Hyperparams)
 train_ds, val_ds, num_features, num_classes = extra
@@ -103,3 +107,7 @@ for epoch in range(Hyperparams.epochs):
                      model.__class__.__name__ + ".pth")
         )
         print("New best model saved!")
+
+        with open(BasePath + '/best_result.json', 'w') as outfile:
+            json.dump({'train_error': train_error,
+                       'test_error': test_error}, outfile)

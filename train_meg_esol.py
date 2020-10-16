@@ -12,8 +12,8 @@ from utils import preprocess
 
 def main():
     Hyperparams = Args()
-
-    writer = SummaryWriter("./runs/esol/expl/")
+    BasePath = './runs/esol/' + Hyperparams.experiment
+    writer = SummaryWriter(BasePath + '/plots')
     episodes = 0
 
     *_, val, _, _  = preprocess('esol', Hyperparams)
