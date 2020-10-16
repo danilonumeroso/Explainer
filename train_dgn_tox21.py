@@ -18,7 +18,8 @@ if not osp.exists(BasePath):
     os.makedirs(BasePath + "/ckpt")
     os.makedirs(BasePath + "/plots")
 else:
-    os.removedirs(BasePath + "/plots")
+    import shutil
+    shutil.rmtree(BasePath + "/plots", ignore_errors=True)
     os.makedirs(BasePath + "/plots")
 
 writer = SummaryWriter(BasePath + '/plots')
