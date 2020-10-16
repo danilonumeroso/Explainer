@@ -21,7 +21,6 @@ def _preprocess_tox21(args):
 
         return False
 
-    torch.manual_seed(args.seed)
     dataset = TUDataset(
         Path.data('Balanced-Tox21'),
         name='Tox21_AhR_training',
@@ -45,7 +44,6 @@ def _preprocess_tox21(args):
 def _preprocess_esol(args):
     from torch_geometric.datasets import MoleculeNet
 
-    torch.manual_seed(args.seed)
     dataset = MoleculeNet(
         Path.data('MoleculeNet'),
         name='ESOL'

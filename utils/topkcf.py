@@ -1,16 +1,16 @@
 from config.explainer import Path, Args
 
-class TopKCounterfactuals:
+class TopKCounterfactualsTox21:
     Leaderboard = None
     K = 5
 
     @staticmethod
     def init(original, index, k=5):
 
-        TopKCounterfactuals.K = k
+        TopKCounterfactualsTox21.K = k
 
-        if TopKCounterfactuals.Leaderboard is None:
-            TopKCounterfactuals.Leaderboard = {
+        if TopKCounterfactualsTox21.Leaderboard is None:
+            TopKCounterfactualsTox21.Leaderboard = {
                 'original': original,
                 'index': index,
                 'counterfacts': [
@@ -22,8 +22,8 @@ class TopKCounterfactuals:
     @staticmethod
     def insert(counterfact):
 
-        Leaderboard = TopKCounterfactuals.Leaderboard
-        K = TopKCounterfactuals.K
+        Leaderboard = TopKCounterfactualsTox21.Leaderboard
+        K = TopKCounterfactualsTox21.K
 
         if any(
             x['smiles'] == counterfact['smiles']
@@ -38,7 +38,7 @@ class TopKCounterfactuals:
         )
         Leaderboard['counterfacts'] = Leaderboard['counterfacts'][:K]
 
-        TopKCounterfactuals._dump()
+        TopKCounterfactualsTox21._dump()
 
     @staticmethod
     def _dump():
@@ -46,12 +46,12 @@ class TopKCounterfactuals:
 
         with open(
             Path.counterfacts(
-                str(TopKCounterfactuals.Leaderboard['index']) + '.json',
+                str(TopKCounterfactualsTox21.Leaderboard['index']) + '.json',
                 "Tox21"
             ),
             'w'
         ) as f:
-            json.dump(TopKCounterfactuals.Leaderboard, f, indent=2)
+            json.dump(TopKCounterfactualsTox21.Leaderboard, f, indent=2)
 
 
 class TopKCounterfactualsESOL:
@@ -61,10 +61,10 @@ class TopKCounterfactualsESOL:
     @staticmethod
     def init(original, index, k=5):
 
-        TopKCounterfactuals.K = k
+        TopKCounterfactualsESOL.K = k
 
-        if TopKCounterfactuals.Leaderboard is None:
-            TopKCounterfactuals.Leaderboard = {
+        if TopKCounterfactualsESOL.Leaderboard is None:
+            TopKCounterfactualsESOL.Leaderboard = {
                 'original': original,
                 'index': index,
                 'counterfacts': [
@@ -82,8 +82,8 @@ class TopKCounterfactualsESOL:
     @staticmethod
     def insert(counterfact):
 
-        Leaderboard = TopKCounterfactuals.Leaderboard
-        K = TopKCounterfactuals.K
+        Leaderboard = TopKCounterfactualsESOL.Leaderboard
+        K = TopKCounterfactualsESOL.K
 
         if any(
             x['smiles'] == counterfact['smiles']
@@ -98,17 +98,16 @@ class TopKCounterfactualsESOL:
         )
         Leaderboard['counterfacts'] = Leaderboard['counterfacts'][:K]
 
-        TopKCounterfactuals._dump()
+        TopKCounterfactualsESOL._dump()
 
     @staticmethod
     def _dump():
         import json
-
         with open(
             Path.counterfacts(
-                str(TopKCounterfactuals.Leaderboard['index']) + '.json',
+                str(TopKCounterfactualsESOL.Leaderboard['index']) + '.json',
                 "ESOL"
             ),
             'w'
         ) as f:
-            json.dump(TopKCounterfactuals.Leaderboard, f, indent=2)
+            json.dump(TopKCounterfactualsESOL.Leaderboard, f, indent=2)

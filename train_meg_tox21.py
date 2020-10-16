@@ -16,8 +16,12 @@ def main():
     writer = SummaryWriter(BasePath + '/plots')
     episodes = 0
 
+    with open(BasePath + '/hyperparams.json') as file:
+        params = json.load(file)
+        torch.manual_seed(params['seed'])
 
     *_, val, _, _  = preprocess('tox21', Hyperparams)
+
 
     torch.manual_seed(torch.initial_seed())
 
@@ -28,7 +32,7 @@ def main():
 
     Log(f'Molecule: {utils.pyg_to_smiles(molecule)}')
 
-    utils.TopKCounterfactuals.init(
+    utils.TopKCounterfactualsTox21.init(
         utils.pyg_to_smiles(molecule),
         Hyperparams.sample
     )
@@ -178,7 +182,7 @@ def main():
                 Log(f'Episode {episodes}::Final Molecule Reward: {final_reward:.6f} (pred: {pred:.6f}, sim: {sim:.6f})')
                 Log(f'Episode {episodes}::Final Molecule: {action}')
 
-            utils.TopKCounterfactuals.insert({
+            utils.TopKCounterfactualsTox21.insert({
                 'smiles': action,
                 'score': final_reward
             })

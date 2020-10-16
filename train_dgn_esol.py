@@ -10,7 +10,7 @@ from config.encoder import Args
 from utils import preprocess
 
 Hyperparams = Args()
-
+torch.manual_seed(Hyperparams.seed)
 BasePath = './runs/esol/' + Hyperparams.experiment_name
 if not osp.exists(BasePath):
     os.makedirs(BasePath + "/ckpt")
@@ -49,7 +49,8 @@ with open(BasePath + '/hyperparams.json', 'w') as outfile:
     json.dump({'num_input': num_features,
                'num_hidden': Hyperparams.hidden_size,
                'num_output': num_classes,
-               'dropout': dropout}, outfile)
+               'dropout': dropout,
+               'seed': Hyperparams.seed}, outfile)
 
 
 def train(epoch):

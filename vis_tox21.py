@@ -21,7 +21,6 @@ parser = ap.ArgumentParser(description='Visualisation script')
 parser.add_argument('--file', required=True)
 parser.add_argument('--epochs', type=int, default=200)
 parser.add_argument('--experiment', default='test')
-parser.add_argument('--seed', default=0)
 parser.add_argument('--test_split', type=int, default=10)
 parser.add_argument('--batch_size', type=int, default=1)
 parser.add_argument('--figure', dest='figure', action='store_true')
@@ -41,8 +40,13 @@ if not os.path.exists(SAVE_DIR):
 Encoder = get_encoder("Tox21", args.experiment)
 Explainer = GNNExplainerTox21(Encoder, epochs=args.epochs)
 
-*_, train, val, _, _  = preprocess('tox21', args)
+BasePath = './runs/tox21/' + args.experiment
+with open(BasePath + '/hyperparams.json') as file:
+    params = json.load(file)
+    torch.manual_seed(params['seed'])
 
+*_, train, val, _, _  = preprocess('tox21', args)
+torch.manual_seed(torch.initial_seed())
 Y = val[int(SAMPLE)].y.item()
 
 with open(args.file, 'r') as f:

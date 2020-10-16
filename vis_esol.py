@@ -15,13 +15,13 @@ from config import filter as filter_
 from config.explainer import Elements
 from models import GNNExplainerESOL
 import matplotlib.pyplot as plt
+from utils import preprocess
 
 parser = ap.ArgumentParser(description='Visualisation script')
 
 parser.add_argument('--file', required=True)
 parser.add_argument('--epochs', type=int, default=200)
 parser.add_argument('--experiment', default='test')
-parser.add_argument('--seed', default=0)
 parser.add_argument('--test_split', type=int, default=10)
 parser.add_argument('--batch_size', type=int, default=1)
 parser.add_argument('--figure', dest='figure', action='store_true')
@@ -41,7 +41,13 @@ if not os.path.exists(SAVE_DIR):
 Encoder = utils.get_encoder("ESOL", args.experiment)
 Explainer = GNNExplainerESOL(Encoder, epochs=args.epochs)
 
-*_, train, val, _, _  = preprocess('tox21', args)
+BasePath = './runs/esol/' + args.experiment
+with open(BasePath + '/hyperparams.json') as file:
+    params = json.load(file)
+    torch.manual_seed(params['seed'])
+
+*_, train, val, _, _  = preprocess('esol', args)
+torch.manual_seed(torch.initial_seed())
 
 with open(args.file, 'r') as f:
     counterfacts = json.load(f)

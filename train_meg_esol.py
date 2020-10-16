@@ -181,7 +181,7 @@ def main():
                 Log(f'Episose {episodes}::Mean Loss: {np.array(batch_losses).mean()}')
                 Log(f'Episode {episodes}::Final Molecule: {action}')
 
-            utils.TopKCounterfactuals.insert({
+            utils.TopKCounterfactualsESOL.insert({
                 'smiles': action,
                 'score': final_reward,
                 'loss': loss_,
