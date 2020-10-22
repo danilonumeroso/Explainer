@@ -2,6 +2,7 @@ import torch
 import utils
 import numpy as np
 import torchvision
+import json
 
 from torch_geometric.datasets import TUDataset
 from models.explainer import Counterfactual, Agent, CounterfactualESOL

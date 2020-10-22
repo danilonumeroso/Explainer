@@ -3,8 +3,10 @@ from config.encoder import Args, Path
 from torch_geometric.data import DataLoader
 from torch.nn import functional as F
 
+
 def preprocess(dataset_name, args):
     return _PREPROCESS[dataset_name.lower()](args)
+
 
 def _preprocess_tox21(args):
     from torch_geometric.datasets import TUDataset
@@ -40,6 +42,7 @@ def _preprocess_tox21(args):
         train.num_features,
         train.num_classes,
     )
+
 
 def _preprocess_esol(args):
     from torch_geometric.datasets import MoleculeNet
