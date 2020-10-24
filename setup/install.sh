@@ -9,6 +9,7 @@ conda activate meg
 
 conda install pip -y
 conda install rdkit -c rdkit -y
+conda install tensorboard -y
 
 python -m pip install torch==1.6.0+cpu torchvision==0.7.0+cpu -f https://download.pytorch.org/whl/torch_stable.html
 # PyTorch Geometric dependencies
