@@ -7,6 +7,7 @@ from config.explainer import Args
 class Counterfactual(Molecule):
     def __init__(
         self,
+        encoder,
         discount_factor,
         mol_fp,
         base_molecule,
@@ -24,7 +25,7 @@ class Counterfactual(Molecule):
         self.counterfactual_class = counterfactual_class
 
         self.mol_fp = mol_fp
-        self.encoder = utils.get_encoder("Tox21", Hyperparams.experiment)
+        self.encoder = encoder
         self.base_molecule = base_molecule
         pred, self.base_encoding = self._encode(base_molecule)
 

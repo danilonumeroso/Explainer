@@ -14,6 +14,10 @@ class GCNN(torch.nn.Module):
     ):
         super(GCNN, self).__init__()
 
+        self.num_input = num_input
+        self.num_hidden = num_hidden
+        self.num_input = num_output
+
         self.conv1 = GraphConv(num_input, num_hidden)
         self.conv2 = GraphConv(num_hidden, num_hidden)
         self.conv3 = GraphConv(num_hidden, num_hidden)

@@ -9,6 +9,7 @@ from models.explainer import Counterfactual, Agent, CounterfactualESOL
 from config.explainer import Args, Path, Log, Elements
 from torch.utils.tensorboard import SummaryWriter
 from utils import preprocess
+from rdkit import Chem
 
 
 def main():
@@ -57,6 +58,8 @@ def main():
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+    base_model = utils.get_encoder("Tox21", Hyperparams.experiment)
+
     environment = Counterfactual(
         init_mol=utils.pyg_to_smiles(molecule),
         mol_fp=utils.morgan_fingerprint(
@@ -73,15 +76,22 @@ def main():
         max_steps=Hyperparams.max_steps_per_episode,
         base_molecule=molecule,
         counterfactual_class=(1 - molecule.y.item()),
-        weight_sim=0.2
+        weight_sim=0.2,
+        encoder=base_model
     )
 
-    agent = Agent(Hyperparams.fingerprint_length + 1, 1, device)
+    agent = Agent(base_model.num_hidden, 1, device)
 
     environment.initialize()
 
     eps_threshold = 1.0
     batch_losses = []
+
+
+    def smiles_to_pyg(smile):
+        mol = utils.mol_to_pyg(Chem.MolFromSmiles(smile))
+        _, encoding = base_model(mol.x, mol.edge_index, mol.batch)
+        return encoding.squeeze()
 
     for it in range(Hyperparams.epochs):
         steps_left = Hyperparams.max_steps_per_episode - environment.num_steps_taken
@@ -89,24 +99,31 @@ def main():
         valid_actions = list(environment.get_valid_actions())
 
         # Append each valid action to steps_left and store in observations.
-        observations = np.vstack(
+
+
+        observations = torch.stack(
             [
-                np.append(
-                    utils.numpy_morgan_fingerprint(
-                        act,
-                        Hyperparams.fingerprint_length,
-                        Hyperparams.fingerprint_radius
-                    ),
-                    steps_left,
-                )
+                # np.append(
+                # utils.numpy_morgan_fingerprint(
+                #     act,
+                #     Hyperparams.fingerprint_length,
+                #     Hyperparams.fingerprint_radius
+                # )
+                #     steps_left,
+                # )
+                smiles_to_pyg(act)
                 for act in valid_actions
             ]
         )  # (num_actions, fingerprint_length)
 
-        observations_tensor = torch.Tensor(observations)
+        # input (observations)
+        # for a in valid_actions:
+        #     utils.mol_to_pyg(Chem.
 
+        # for act in valid_actions:
+        #     input(act)
 
-        a = agent.get_action(observations_tensor, eps_threshold)
+        a = agent.get_action(observations, eps_threshold)
 
         # Find out the new state (we store the new state in "action" here.
         # Bit confusing but taken from original implementation)
@@ -114,14 +131,22 @@ def main():
         # Take a step based on the action
         result = environment.step(action)
 
-        action_fingerprint = np.append(
-            utils.numpy_morgan_fingerprint(
-                action,
-                Hyperparams.fingerprint_length,
-                Hyperparams.fingerprint_radius
-            ),
-            steps_left,
-        )
+        # action_fingerprint = np.append(
+        #     utils.numpy_morgan_fingerprint(
+        #         action,
+        #         Hyperparams.fingerprint_length,
+        #         Hyperparams.fingerprint_radius
+        #     ),
+        #     steps_left,
+        # )
+
+        action_fingerprint = smiles_to_pyg(action)
+        # utils.numpy_morgan_fingerprint(
+        #         action,
+        #         Hyperparams.fingerprint_length,
+        #         Hyperparams.fingerprint_radius
+        #     )
+        # # input(action_fingerprint)
 
         next_state, reward, done = result
         reward, pred, sim = reward
@@ -134,38 +159,50 @@ def main():
         steps_left = Hyperparams.max_steps_per_episode - environment.num_steps_taken
 
         # Append steps_left to the new state and store in next_state
-        next_state = utils.numpy_morgan_fingerprint(
-            next_state,
-            Hyperparams.fingerprint_length,
-            Hyperparams.fingerprint_radius
-        )
+        next_state = smiles_to_pyg(next_state)
+
+        # utils.numpy_morgan_fingerprint(
+        #     next_state,
+        #     Hyperparams.fingerprint_length,
+        #     Hyperparams.fingerprint_radius
+        # )
         # (fingerprint_length)
 
-        action_fingerprints = np.vstack(
+        action_fingerprints = torch.stack(
             [
-                np.append(
-                    utils.numpy_morgan_fingerprint(
-                        act,
-                        Hyperparams.fingerprint_length,
-                        Hyperparams.fingerprint_radius
-                    ),
-                    steps_left,
-                )
+                # np.append(
+                smiles_to_pyg(act)
+                # utils.numpy_morgan_fingerprint(
+                #     act,
+                #     Hyperparams.fingerprint_length,
+                #     Hyperparams.fingerprint_radius
+                # )
+                    # steps_left,
+                # )
                 for act in environment.get_valid_actions()
             ]
         )  # (num_actions, fingerprint_length + 1)
+
+        # input(action_fingerprints)
 
         # Update replay buffer (state: (fingerprint_length + 1), action: _,
         # reward: (), next_state: (num_actions, fingerprint_length + 1),
         # done: ()
 
-        agent.replay_buffer.add(
-            obs_t=action_fingerprint,  # (fingerprint_length + 1)
-            action=0,  # No use
-            reward=reward,
-            obs_tp1=action_fingerprints,  # (num_actions, fingerprint_length + 1)
-            done=float(result.terminated),
+        agent.replay_buffer.push(
+            action_fingerprint,
+            reward,
+            action_fingerprints,
+            float(result.terminated)
         )
+
+        # agent.replay_buffer.add(
+        #     obs_t=action_fingerprint,  # (fingerprint_length + 1)
+        #     action=0,  # No use
+        #     reward=reward,
+        #     obs_tp1=action_fingerprints,  # (num_actions, fingerprint_length + 1)
+        #     done=float(result.terminated),
+        # )
 
         if it % Hyperparams.update_interval == 0 and agent.replay_buffer.__len__() >= Hyperparams.batch_size:
             for update in range(Hyperparams.num_updates_per_it):

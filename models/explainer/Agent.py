@@ -2,6 +2,7 @@ import torch
 import numpy as np
 import torch.optim as opt
 from models.explainer import MolDQN
+from models.explainer.ReplayMemory import ReplayMemory
 from config.explainer import Args
 
 
@@ -12,21 +13,17 @@ class Agent(object):
         REPLAY_BUFFER_CAPACITY = Hyperparams.replay_buffer_size
 
         self.device = device
+        self.num_input = num_input
 
         self.dqn, self.target_dqn = (
-            MolDQN(num_input, num_output).to(self.device),
-            MolDQN(num_input, num_output).to(self.device)
+            MolDQN(num_input*2, num_output).to(self.device),
+            MolDQN(num_input*2, num_output).to(self.device)
         )
 
         for p in self.target_dqn.parameters():
             p.requires_grad = False
 
-        import warnings
-        warnings.filterwarnings("ignore")
-        from baselines.deepq import replay_buffer
-        warnings.filterwarnings("default")
-
-        self.replay_buffer = replay_buffer.ReplayBuffer(REPLAY_BUFFER_CAPACITY)
+        self.replay_buffer = ReplayMemory(REPLAY_BUFFER_CAPACITY)
 
         self.optimizer = getattr(opt, Hyperparams.optimizer)(
             self.dqn.parameters(), lr=Hyperparams.lr
@@ -46,53 +43,38 @@ class Agent(object):
 
         Hyperparams = Args()
 
-        states, _, rewards, next_states, dones = \
-            self.replay_buffer.sample(batch_size)
+        experience = self.replay_buffer.sample(batch_size)
 
-        q_t = torch.zeros(batch_size, 1, requires_grad=False)
-        v_tp1 = torch.zeros(batch_size, 1, requires_grad=False)
+        # states = torch.tensor([S for S, *_ in experience]).float().reshape(-1, self.num_input).to(self.device)
+        states = torch.stack([S for S, *_ in experience]).to(self.device)
 
-        for i in range(batch_size):
-            state = (
-                torch.FloatTensor(states[i])
-                .reshape(-1, Hyperparams.fingerprint_length + 1)
-                .to(self.device)
-            )
+        next_states = torch.stack([S for *_, S, _ in experience]).to(self.device)
 
-            q_t[i] = self.dqn(state)
+        q, q_target = self.dqn(states), torch.max(self.target_dqn(next_states), dim=1).values.detach()
 
-            next_state = (
-                torch.FloatTensor(next_states[i])
-                .reshape(-1, Hyperparams.fingerprint_length + 1)
-                .to(self.device)
-            )
+        q, q_target = q.to(self.device), q_target.to(self.device)
 
-            v_tp1[i] = torch.max(self.target_dqn(next_state))
 
-        rewards = torch.FloatTensor(rewards).reshape(q_t.shape).to(self.device)
-        q_t = q_t.to(self.device)
-        v_tp1 = v_tp1.to(self.device)
-        dones = torch.FloatTensor(dones).reshape(q_t.shape).to(self.device)
+        rewards = torch.tensor([R for _, R, *_ in experience]).resize_as_(q).to(self.device)
 
-        # get q values
-        q_tp1_masked = (1 - dones) * v_tp1
-        q_t_target = rewards + gamma * q_tp1_masked
-        td_error = q_t - q_t_target
+        dones = torch.tensor([D for *_, D in experience]).resize_as_(q).to(self.device)
 
-        q_loss = torch.where(
-            torch.abs(td_error) < 1.0,
-            0.5 * td_error * td_error,
-            1.0 * (torch.abs(td_error) - 0.5),
-        )
-        q_loss = q_loss.mean()
+        q_target = rewards + gamma * (1 - dones) * q_target
+        td_target = q - q_target
+
+        loss = torch.where(
+            torch.abs(td_target) < 1.0,
+            0.5 * td_target * td_target,
+            1.0 * (torch.abs(td_target) - 0.5),
+        ).mean()
 
         self.optimizer.zero_grad()
-        q_loss.backward()
+        loss.backward()
         self.optimizer.step()
 
         with torch.no_grad():
-            for p, pt in zip(self.dqn.parameters(), self.target_dqn.parameters()):
-                pt.data.mul_(polyak)
-                pt.data.add_((1 - polyak) * p.data)
+            for param, target_param in zip(self.dqn.parameters(), self.target_dqn.parameters()):
+                target_param.data.mul_(polyak)
+                target_param.data.add_((1 - polyak) * param.data)
 
-        return q_loss
+        return loss
