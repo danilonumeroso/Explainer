@@ -174,7 +174,7 @@ def mol_to_esol_pyg(mol):
     return data
 
 
-def get_encoder(dataset, experiment):
+def get_dgn(dataset, experiment):
     from models.encoder.GCNN import GCNN
     import json
 
@@ -205,3 +205,10 @@ def get_encoder(dataset, experiment):
         )
         m.eval()
         return m
+
+
+
+def molecule_encoding(model, smile):
+    mol = mol_to_pyg(Chem.MolFromSmiles(smile))
+    _, encoding = model(mol.x, mol.edge_index, mol.batch)
+    return encoding.squeeze()

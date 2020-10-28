@@ -29,7 +29,7 @@ class Agent(object):
             self.dqn.parameters(), lr=Hyperparams.lr
         )
 
-    def get_action(self, observations, epsilon_threshold):
+    def action_step(self, observations, epsilon_threshold):
 
         if np.random.uniform() < epsilon_threshold:
             action = np.random.randint(0, observations.shape[0])
@@ -39,13 +39,12 @@ class Agent(object):
 
         return action
 
-    def update_params(self, batch_size, gamma, polyak):
+    def train_step(self, batch_size, gamma, polyak):
 
         Hyperparams = Args()
 
         experience = self.replay_buffer.sample(batch_size)
 
-        # states = torch.tensor([S for S, *_ in experience]).float().reshape(-1, self.num_input).to(self.device)
         states = torch.stack([S for S, *_ in experience]).to(self.device)
 
         next_states = torch.stack([S for *_, S, _ in experience]).to(self.device)

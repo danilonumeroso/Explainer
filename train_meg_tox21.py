@@ -8,7 +8,7 @@ from torch_geometric.datasets import TUDataset
 from models.explainer import Counterfactual, Agent, CounterfactualESOL
 from config.explainer import Args, Path, Log, Elements
 from torch.utils.tensorboard import SummaryWriter
-from utils import preprocess
+from utils import preprocess, molecule_encoding
 from rdkit import Chem
 
 
@@ -46,19 +46,9 @@ def main():
         )
     ]
 
-    Hyperparams.atom_types.sort()
-    atoms_.sort()
-
-    if not np.array_equal(atoms_, Hyperparams.atom_types):
-        Log("[Warn] Hyperparams.atom_types differ from the" +
-            " actual atoms composing the original molecule.")
-
-        Hyperparams = Hyperparams._replace(atom_types=atoms_)
-        Log("Fixed", Hyperparams.atom_types)
-
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    base_model = utils.get_encoder("Tox21", Hyperparams.experiment)
+    base_model = utils.get_dgn("Tox21", Hyperparams.experiment)
 
     environment = Counterfactual(
         init_mol=utils.pyg_to_smiles(molecule),
@@ -68,7 +58,7 @@ def main():
             Hyperparams.fingerprint_radius
         ),
         discount_factor=Hyperparams.discount,
-        atom_types=set(Hyperparams.atom_types),
+        atom_types=set(atoms_),
         allow_removal=Hyperparams.allow_removal,
         allow_no_modification=Hyperparams.allow_no_modification,
         allow_bonds_between_rings=Hyperparams.allow_bonds_between_rings,
@@ -88,106 +78,37 @@ def main():
     batch_losses = []
 
 
-    def smiles_to_pyg(smile):
-        mol = utils.mol_to_pyg(Chem.MolFromSmiles(smile))
-        _, encoding = base_model(mol.x, mol.edge_index, mol.batch)
-        return encoding.squeeze()
-
     for it in range(Hyperparams.epochs):
         steps_left = Hyperparams.max_steps_per_episode - environment.num_steps_taken
 
         valid_actions = list(environment.get_valid_actions())
 
-        # Append each valid action to steps_left and store in observations.
-
-
         observations = torch.stack(
             [
-                # np.append(
-                # utils.numpy_morgan_fingerprint(
-                #     act,
-                #     Hyperparams.fingerprint_length,
-                #     Hyperparams.fingerprint_radius
-                # )
-                #     steps_left,
-                # )
-                smiles_to_pyg(act)
-                for act in valid_actions
+                molecule_encoding(base_model, smile)
+                for smile in valid_actions
             ]
-        )  # (num_actions, fingerprint_length)
+        )
 
-        # input (observations)
-        # for a in valid_actions:
-        #     utils.mol_to_pyg(Chem.
-
-        # for act in valid_actions:
-        #     input(act)
-
-        a = agent.get_action(observations, eps_threshold)
-
-        # Find out the new state (we store the new state in "action" here.
-        # Bit confusing but taken from original implementation)
+        a = agent.action_step(observations, eps_threshold)
         action = valid_actions[a]
-        # Take a step based on the action
         result = environment.step(action)
 
-        # action_fingerprint = np.append(
-        #     utils.numpy_morgan_fingerprint(
-        #         action,
-        #         Hyperparams.fingerprint_length,
-        #         Hyperparams.fingerprint_radius
-        #     ),
-        #     steps_left,
-        # )
+        action_fingerprint = molecule_encoding(base_model, action)
 
-        action_fingerprint = smiles_to_pyg(action)
-        # utils.numpy_morgan_fingerprint(
-        #         action,
-        #         Hyperparams.fingerprint_length,
-        #         Hyperparams.fingerprint_radius
-        #     )
-        # # input(action_fingerprint)
-
-        next_state, reward, done = result
+        _, reward, done = result
         reward, pred, sim = reward
 
         writer.add_scalar('Tox21/Reward', reward, it)
         writer.add_scalar('Tox21/Prediction', pred, it)
         writer.add_scalar('Tox21/Similarity', sim, it)
 
-        # Compute number of steps left
-        steps_left = Hyperparams.max_steps_per_episode - environment.num_steps_taken
-
-        # Append steps_left to the new state and store in next_state
-        next_state = smiles_to_pyg(next_state)
-
-        # utils.numpy_morgan_fingerprint(
-        #     next_state,
-        #     Hyperparams.fingerprint_length,
-        #     Hyperparams.fingerprint_radius
-        # )
-        # (fingerprint_length)
-
         action_fingerprints = torch.stack(
             [
-                # np.append(
-                smiles_to_pyg(act)
-                # utils.numpy_morgan_fingerprint(
-                #     act,
-                #     Hyperparams.fingerprint_length,
-                #     Hyperparams.fingerprint_radius
-                # )
-                    # steps_left,
-                # )
-                for act in environment.get_valid_actions()
+                molecule_encoding(base_model, smile)
+                for smile in environment.get_valid_actions()
             ]
-        )  # (num_actions, fingerprint_length + 1)
-
-        # input(action_fingerprints)
-
-        # Update replay buffer (state: (fingerprint_length + 1), action: _,
-        # reward: (), next_state: (num_actions, fingerprint_length + 1),
-        # done: ()
+        )
 
         agent.replay_buffer.push(
             action_fingerprint,
@@ -196,17 +117,9 @@ def main():
             float(result.terminated)
         )
 
-        # agent.replay_buffer.add(
-        #     obs_t=action_fingerprint,  # (fingerprint_length + 1)
-        #     action=0,  # No use
-        #     reward=reward,
-        #     obs_tp1=action_fingerprints,  # (num_actions, fingerprint_length + 1)
-        #     done=float(result.terminated),
-        # )
-
-        if it % Hyperparams.update_interval == 0 and agent.replay_buffer.__len__() >= Hyperparams.batch_size:
+        if it % Hyperparams.update_interval == 0 and len(agent.replay_buffer) >= Hyperparams.batch_size:
             for update in range(Hyperparams.num_updates_per_it):
-                loss = agent.update_params(
+                loss = agent.train_step(
                     Hyperparams.batch_size,
                     Hyperparams.gamma,
                     Hyperparams.polyak
