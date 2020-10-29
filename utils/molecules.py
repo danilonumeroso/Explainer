@@ -10,6 +10,7 @@ import numpy as np
 import sys
 import os
 import torch
+import torch_geometric
 
 sys.path.append(os.path.join(RDConfig.RDContribDir, "SA_Score"))
 
@@ -65,24 +66,16 @@ def pyg_to_mol(pyg_mol):
     for x in X:
         mol.AddAtom(x)
 
-    if pyg_mol.edge_attr is None:
-        for u, v in E:
-            u = u.item()
-            v = v.item()
-            if mol.GetBondBetweenAtoms(u, v):
-                continue
-            mol.AddBond(u, v, Chem.BondType.SINGLE)
-    else:
-        for (u, v), attr in zip(E, pyg_mol.edge_attr):
-            u = u.item()
-            v = v.item()
-            attr = attr.numpy().tolist()
-            attr = EdgesToRDKit(attr.index(1))
+    for (u, v), attr in zip(E, pyg_mol.edge_attr):
+        u = u.item()
+        v = v.item()
+        attr = attr.numpy().tolist()
+        attr = EdgesToRDKit(attr.index(1))
 
-            if mol.GetBondBetweenAtoms(u, v):
-                continue
+        if mol.GetBondBetweenAtoms(u, v):
+            continue
 
-            mol.AddBond(u, v, attr)
+        mol.AddBond(u, v, attr)
 
     return mol
 
@@ -92,6 +85,11 @@ def pyg_to_smiles(pyg_mol):
         pyg_to_mol(pyg_mol)
     )
 
+def check_molecule_validity(mol):
+    if type(mol) == torch_geometric.data.Data:
+        mol = pyg_to_mol(mol)
+
+    return Chem.SanitizeMol(mol, catchErrors=True) == Chem.SANITIZE_NONE
 
 def mol_to_pyg(molecule):
     X = torch.nn.functional.one_hot(

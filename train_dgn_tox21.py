@@ -9,7 +9,7 @@ from torch_geometric.utils import f1_score, accuracy
 from torch.utils.tensorboard import SummaryWriter
 from models.encoder import GCNN
 from config.encoder import Args
-from utils import preprocess
+from utils import preprocess, get_dgn
 
 Hyperparams = Args()
 torch.manual_seed(Hyperparams.seed)
@@ -24,11 +24,12 @@ else:
 
 writer = SummaryWriter(BasePath + '/plots')
 
-train_loader, test_loader, *extra = preprocess('tox21', Hyperparams)
-train_ds, val_ds, num_features, num_classes = extra
+train_loader, val_loader, test_loader, *extra = preprocess('tox21', Hyperparams)
+train_ds, val_ds, test_ds, num_features, num_classes = extra
 
 len_train = len(train_ds)
 len_val = len(val_ds)
+len_test = len(test_ds)
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -102,7 +103,7 @@ for epoch in range(Hyperparams.epochs):
     loss = train(epoch)
     writer.add_scalar('Loss/train', loss, epoch)
     train_acc, train_prec, train_rec, train_f1, _ = test(train_loader)
-    val_acc, val_prec, val_rec, val_f1, l = test(test_loader)
+    val_acc, val_prec, val_rec, val_f1, l = test(val_loader)
 
     writer.add_scalar('Accuracy/train', train_acc, epoch)
     writer.add_scalar('Accuracy/val', val_acc, epoch)
@@ -135,3 +136,9 @@ for epoch in range(Hyperparams.epochs):
                        'val_f1': val_f1,
                        'train_prec': train_prec,
                        'val_prec': val_prec}, outfile)
+
+
+model = get_dgn('tox21', Hyperparams.experiment_name)
+val_acc, val_prec, val_rec, val_f1, l = test(test_loader)
+print(f'TS -> Acc: {val_acc:.5f}  Rec: {val_rec:.5f}  \
+Prec: {val_prec:.5f}  F1: {val_f1:.5f}')
