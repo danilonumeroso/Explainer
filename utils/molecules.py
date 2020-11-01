@@ -97,7 +97,7 @@ def mol_to_pyg(molecule):
             Elements[atom.GetSymbol()].value
             for atom in molecule.GetAtoms()
         ]),
-        num_classes=50
+        num_classes=53
     ).float()
 
     E = torch.tensor([
@@ -192,6 +192,7 @@ def get_dgn(dataset, experiment):
         )
         m.eval()
         return m
+
     elif dataset.lower() == "esol":
         m = GCNN(params['num_input'], params['num_hidden'], params['num_output'])
         m.load_state_dict(
@@ -203,7 +204,6 @@ def get_dgn(dataset, experiment):
         )
         m.eval()
         return m
-
 
 
 def molecule_encoding(model, smile):

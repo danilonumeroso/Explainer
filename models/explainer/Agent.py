@@ -16,15 +16,14 @@ class Agent(object):
         self.num_input = num_input
 
         self.dqn, self.target_dqn = (
-            MolDQN(num_input*2, num_output).to(self.device),
-            MolDQN(num_input*2, num_output).to(self.device)
+            MolDQN(num_input, num_output).to(self.device),
+            MolDQN(num_input, num_output).to(self.device)
         )
 
         for p in self.target_dqn.parameters():
             p.requires_grad = False
 
         self.replay_buffer = ReplayMemory(REPLAY_BUFFER_CAPACITY)
-
         self.optimizer = getattr(opt, Hyperparams.optimizer)(
             self.dqn.parameters(), lr=Hyperparams.lr
         )
@@ -45,14 +44,13 @@ class Agent(object):
 
         experience = self.replay_buffer.sample(batch_size)
 
-        states = torch.stack([S for S, *_ in experience]).to(self.device)
+        states_ = torch.stack([S for S, *_ in experience])
 
-        next_states = torch.stack([S for *_, S, _ in experience]).to(self.device)
+        next_states_ = [S for *_, S, _ in experience]
 
-        q, q_target = self.dqn(states), torch.max(self.target_dqn(next_states), dim=1).values.detach()
+        q, q_target = self.dqn(states_), torch.stack([self.target_dqn(S).max(dim=0).values.detach() for S in next_states_])
 
         q, q_target = q.to(self.device), q_target.to(self.device)
-
 
         rewards = torch.tensor([R for _, R, *_ in experience]).resize_as_(q).to(self.device)
 

@@ -17,6 +17,7 @@ BasePath = './runs/tox21/' + Hyperparams.experiment_name
 if not osp.exists(BasePath):
     os.makedirs(BasePath + "/ckpt")
     os.makedirs(BasePath + "/plots")
+    os.makedirs(BasePath + "/splits")
 else:
     import shutil
     shutil.rmtree(BasePath + "/plots", ignore_errors=True)

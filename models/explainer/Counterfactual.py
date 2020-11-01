@@ -3,6 +3,7 @@ import utils
 from rdkit import Chem, DataStructs
 from models.explainer.Environment import Molecule
 from config.explainer import Args
+from torch.nn import functional as F
 
 class Counterfactual(Molecule):
     def __init__(
@@ -50,7 +51,7 @@ class Counterfactual(Molecule):
                                         molecule.edge_index,
                                         molecule.batch)
 
-        return output, encoding.squeeze()
+        return F.log_softmax(output, dim=-1), encoding.squeeze()
 
     def _reward(self):
         """

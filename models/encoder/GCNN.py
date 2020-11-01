@@ -16,7 +16,7 @@ class GCNN(torch.nn.Module):
 
         self.num_input = num_input
         self.num_hidden = num_hidden
-        self.num_input = num_output
+        self.num_output = num_output
 
         self.conv1 = GraphConv(num_input, num_hidden)
         self.conv2 = GraphConv(num_hidden, num_hidden)

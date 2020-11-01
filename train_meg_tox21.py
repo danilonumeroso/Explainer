@@ -8,7 +8,7 @@ from torch_geometric.datasets import TUDataset
 from models.explainer import Counterfactual, Agent, CounterfactualESOL
 from config.explainer import Args, Path, Log, Elements
 from torch.utils.tensorboard import SummaryWriter
-from utils import preprocess, molecule_encoding
+from utils import preprocess, molecule_encoding, get_split
 from rdkit import Chem
 
 
@@ -20,14 +20,10 @@ def main():
 
     with open(BasePath + '/hyperparams.json') as file:
         params = json.load(file)
-        torch.manual_seed(params['seed'])
 
-    *_, val, _, _  = preprocess('tox21', Hyperparams)
+    dataset = get_split('tox21', 'test', Hyperparams.experiment)
 
-
-    torch.manual_seed(torch.initial_seed())
-
-    molecule = val[Hyperparams.sample]
+    molecule = dataset[Hyperparams.sample]
     molecule.batch = torch.zeros(
         molecule.x.shape[0]
     ).long()
@@ -70,7 +66,7 @@ def main():
         encoder=base_model
     )
 
-    agent = Agent(base_model.num_hidden, 1, device)
+    agent = Agent(Hyperparams.fingerprint_length + 1, 1, device)
 
     environment.initialize()
 
@@ -83,18 +79,34 @@ def main():
 
         valid_actions = list(environment.get_valid_actions())
 
-        observations = torch.stack(
+        observations = np.vstack(
             [
-                molecule_encoding(base_model, smile)
+                np.append(
+                    utils.numpy_morgan_fingerprint(
+                        smile,
+                        Hyperparams.fingerprint_length,
+                        Hyperparams.fingerprint_radius
+                    ),
+                    steps_left
+                )
                 for smile in valid_actions
             ]
         )
+
+        observations = torch.as_tensor(observations).float()
 
         a = agent.action_step(observations, eps_threshold)
         action = valid_actions[a]
         result = environment.step(action)
 
-        action_fingerprint = molecule_encoding(base_model, action)
+        action_fingerprint = np.append(
+            utils.numpy_morgan_fingerprint(
+                action,
+                Hyperparams.fingerprint_length,
+                Hyperparams.fingerprint_radius
+            ),
+            steps_left
+        )
 
         _, reward, done = result
         reward, pred, sim = reward
@@ -103,17 +115,26 @@ def main():
         writer.add_scalar('Tox21/Prediction', pred, it)
         writer.add_scalar('Tox21/Similarity', sim, it)
 
-        action_fingerprints = torch.stack(
+        steps_left = Hyperparams.max_steps_per_episode - environment.num_steps_taken
+
+        action_fingerprints = np.vstack(
             [
-                molecule_encoding(base_model, smile)
-                for smile in environment.get_valid_actions()
+                np.append(
+                    utils.numpy_morgan_fingerprint(
+                        act,
+                        Hyperparams.fingerprint_length,
+                        Hyperparams.fingerprint_radius
+                    ),
+                    steps_left,
+                )
+                for act in environment.get_valid_actions()
             ]
         )
 
         agent.replay_buffer.push(
-            action_fingerprint,
+            torch.as_tensor(action_fingerprint).float(),
             reward,
-            action_fingerprints,
+            torch.as_tensor(action_fingerprints).float(),
             float(result.terminated)
         )
 
