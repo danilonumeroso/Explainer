@@ -3,6 +3,7 @@ import utils
 import numpy as np
 import torchvision
 import json
+import os
 
 from torch_geometric.datasets import TUDataset
 from models.explainer import CounterfactualTox21, Agent, CounterfactualESOL
@@ -29,7 +30,8 @@ def main():
 
     utils.TopKCounterfactualsTox21.init(
         utils.pyg_to_smiles(molecule),
-        Hyperparams.sample
+        Hyperparams.sample,
+        BasePath + '/counterfacts'
     )
 
     atoms_ = [

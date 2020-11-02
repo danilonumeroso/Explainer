@@ -15,41 +15,30 @@ from config import filter as filter_
 from config.explainer import Elements
 from models import GNNExplainerESOL
 import matplotlib.pyplot as plt
-from utils import preprocess
+from utils import get_split, get_dgn
 
 parser = ap.ArgumentParser(description='Visualisation script')
 
-parser.add_argument('--file', required=True)
+parser.add_argument('--sample', default="0")
 parser.add_argument('--epochs', type=int, default=200)
 parser.add_argument('--experiment', default='test')
-parser.add_argument('--test_split', type=int, default=10)
-parser.add_argument('--batch_size', type=int, default=1)
 parser.add_argument('--figure', dest='figure', action='store_true')
 parser.add_argument('--indexes', nargs='+', type=int,
                     default=[0,1,2,3,4,5])
 args = parser.parse_args()
 
 sys.argv = sys.argv[:1]
+SAVE_DIR = f"runs/esol/{args.experiment}/counterfacts"
 
-SAMPLE = re.findall("\d+\.json", args.file)[0]
-SAMPLE = re.findall("\d+", SAMPLE)[0]
-SAVE_DIR = "counterfacts/drawings/ESOL/" + SAMPLE + "/"
+SAMPLE = args.sample
 
-if not os.path.exists(SAVE_DIR):
-    os.mkdir(SAVE_DIR)
-
-Encoder = utils.get_encoder("ESOL", args.experiment)
+Encoder = get_dgn("esol", args.experiment)
 Explainer = GNNExplainerESOL(Encoder, epochs=args.epochs)
 
-BasePath = './runs/esol/' + args.experiment
-with open(BasePath + '/hyperparams.json') as file:
-    params = json.load(file)
-    torch.manual_seed(params['seed'])
 
-*_, train, val, _, _  = preprocess('esol', args)
-torch.manual_seed(torch.initial_seed())
+dataset = get_split('esol', 'test', args.experiment)
 
-with open(args.file, 'r') as f:
+with open(SAVE_DIR + '/' + SAMPLE + '.json', 'r') as f:
     counterfacts = json.load(f)
 
 Original = {
@@ -58,10 +47,9 @@ Original = {
     )
 }
 
+assert dataset[int(SAMPLE)].smiles == counterfacts['original']
 
-assert val[int(SAMPLE)].smiles == counterfacts['original']
-
-Target = val[int(SAMPLE)].y.detach()[0]
+Target = dataset[int(SAMPLE)].y.detach()[0]
 
 Original['pred'], Original['enc'] = Encoder(Original['mol'].x,
                                             Original['mol'].edge_index,

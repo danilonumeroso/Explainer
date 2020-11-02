@@ -3,10 +3,10 @@ from config.explainer import Path, Args
 class TopKCounterfactualsTox21:
     Leaderboard = None
     K = 5
-
+    save_dir = None
     @staticmethod
-    def init(original, index, k=5):
-
+    def init(original, index, save_dir, k=5):
+        TopKCounterfactualsTox21.save_dir = save_dir
         TopKCounterfactualsTox21.K = k
 
         if TopKCounterfactualsTox21.Leaderboard is None:
@@ -44,23 +44,19 @@ class TopKCounterfactualsTox21:
     def _dump():
         import json
 
-        with open(
-            Path.counterfacts(
-                str(TopKCounterfactualsTox21.Leaderboard['index']) + '.json',
-                "Tox21"
-            ),
-            'w'
-        ) as f:
+        with open(TopKCounterfactualsTox21.save_dir + '/' + str(TopKCounterfactualsTox21.Leaderboard['index']) + '.json','w') as f:
             json.dump(TopKCounterfactualsTox21.Leaderboard, f, indent=2)
 
 
 class TopKCounterfactualsESOL:
     Leaderboard = None
     K = 5
+    save_dir = None
 
     @staticmethod
-    def init(original, index, k=5):
+    def init(original, index, save_dir, k=5):
 
+        TopKCounterfactualsESOL.save_dir = save_dir
         TopKCounterfactualsESOL.K = k
 
         if TopKCounterfactualsESOL.Leaderboard is None:
@@ -103,11 +99,5 @@ class TopKCounterfactualsESOL:
     @staticmethod
     def _dump():
         import json
-        with open(
-            Path.counterfacts(
-                str(TopKCounterfactualsESOL.Leaderboard['index']) + '.json',
-                "ESOL"
-            ),
-            'w'
-        ) as f:
+        with open(TopKCounterfactualsESOL.save_dir + '/' + str(TopKCounterfactualsESOL.Leaderboard['index']) + '.json', 'w') as f:
             json.dump(TopKCounterfactualsESOL.Leaderboard, f, indent=2)

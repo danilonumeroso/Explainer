@@ -16,7 +16,7 @@ class CounterfactualTox21(Molecule):
         weight_sim=0.5,
         **kwargs
     ):
-        super(Counterfactual, self).__init__(**kwargs)
+        super(CounterfactualTox21, self).__init__(**kwargs)
 
         Hyperparams = Args()
 

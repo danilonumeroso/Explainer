@@ -14,43 +14,33 @@ from config.explainer import Elements
 from models import GNNExplainerTox21
 import matplotlib.pyplot as plt
 
-from utils import preprocess, get_encoder
+from utils import get_split, get_dgn
 
 parser = ap.ArgumentParser(description='Visualisation script')
 
-parser.add_argument('--file', required=True)
+parser.add_argument('--sample', default="0")
 parser.add_argument('--epochs', type=int, default=200)
 parser.add_argument('--experiment', default='test')
-parser.add_argument('--test_split', type=int, default=10)
-parser.add_argument('--batch_size', type=int, default=1)
 parser.add_argument('--figure', dest='figure', action='store_true')
 parser.add_argument('--indexes', nargs='+', type=int,
                     default=[0,1,2,3,4,5])
 args = parser.parse_args()
 
 sys.argv = sys.argv[:1]
+SAVE_DIR = f"runs/tox21/{args.experiment}/counterfacts"
 
-SAMPLE = re.findall("\d+\.json", args.file)[0]
-SAMPLE = re.findall("\d+", SAMPLE)[0]
-SAVE_DIR = "counterfacts/drawings/Tox21/" + SAMPLE + "/"
+SAMPLE = args.sample
 
-if not os.path.exists(SAVE_DIR):
-    os.mkdir(SAVE_DIR)
+with open(SAVE_DIR + '/' + SAMPLE + '.json' , 'r') as f:
+    counterfacts = json.load(f)
 
-Encoder = get_encoder("Tox21", args.experiment)
+Encoder = get_dgn("Tox21", args.experiment)
 Explainer = GNNExplainerTox21(Encoder, epochs=args.epochs)
 
-BasePath = './runs/tox21/' + args.experiment
-with open(BasePath + '/hyperparams.json') as file:
-    params = json.load(file)
-    torch.manual_seed(params['seed'])
+dataset = get_split('tox21', 'test', args.experiment)
 
-*_, train, val, _, _  = preprocess('tox21', args)
-torch.manual_seed(torch.initial_seed())
-Y = val[int(SAMPLE)].y.item()
+Y = dataset[int(SAMPLE)].y.item()
 
-with open(args.file, 'r') as f:
-    counterfacts = json.load(f)
 
 def rescale(value, min_, max_):
     return (value - min_) / (max_ - min_)
@@ -100,7 +90,7 @@ def sim(smiles):
     _, og_encoding = Encoder(orig.x, orig.edge_index, orig.batch)
 
     S = []
-    for mol in train:
+    for mol in dataset:
         if Y == mol.y.item():
             continue
 

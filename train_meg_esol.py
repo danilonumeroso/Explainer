@@ -17,7 +17,6 @@ def main():
     episodes = 0
 
     dataset = get_split('esol', 'test', Hyperparams.experiment)
-
     molecule = dataset[Hyperparams.sample]
     molecule.batch = torch.zeros(
         molecule.x.shape[0]
@@ -28,7 +27,8 @@ def main():
 
     utils.TopKCounterfactualsESOL.init(
         molecule.smiles,
-        Hyperparams.sample
+        Hyperparams.sample,
+        BasePath + "/counterfacts"
     )
 
     mol_ = Chem.MolFromSmiles(molecule.smiles)
