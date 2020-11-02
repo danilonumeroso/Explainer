@@ -1,5 +1,5 @@
 from .DQN import MolDQN
 from .Agent import Agent
-from .Counterfactual import Counterfactual
+from .CounterfactualTox21 import CounterfactualTox21
 from .CounterfactualESOL import CounterfactualESOL
 from .ReplayMemory import ReplayMemory

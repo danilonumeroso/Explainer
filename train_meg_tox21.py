@@ -5,7 +5,7 @@ import torchvision
 import json
 
 from torch_geometric.datasets import TUDataset
-from models.explainer import Counterfactual, Agent, CounterfactualESOL
+from models.explainer import CounterfactualTox21, Agent, CounterfactualESOL
 from config.explainer import Args, Path, Log, Elements
 from torch.utils.tensorboard import SummaryWriter
 from utils import preprocess, molecule_encoding, get_split
@@ -17,9 +17,6 @@ def main():
     BasePath = './runs/tox21/' + Hyperparams.experiment
     writer = SummaryWriter(BasePath + '/plots')
     episodes = 0
-
-    with open(BasePath + '/hyperparams.json') as file:
-        params = json.load(file)
 
     dataset = get_split('tox21', 'test', Hyperparams.experiment)
 
@@ -46,7 +43,7 @@ def main():
 
     base_model = utils.get_dgn("Tox21", Hyperparams.experiment)
 
-    environment = Counterfactual(
+    environment = CounterfactualTox21(
         init_mol=utils.pyg_to_smiles(molecule),
         mol_fp=utils.morgan_fingerprint(
             utils.pyg_to_smiles(molecule),
@@ -72,7 +69,6 @@ def main():
 
     eps_threshold = 1.0
     batch_losses = []
-
 
     for it in range(Hyperparams.epochs):
         steps_left = Hyperparams.max_steps_per_episode - environment.num_steps_taken

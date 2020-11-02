@@ -15,7 +15,8 @@ class CounterfactualESOL(Molecule):
             discount_factor,
             base_molecule,
             target,
-            weights=[1, 1, 1],
+            model_to_explain,
+            weights=[1, 1],
             **kwargs
     ):
         super(CounterfactualESOL, self).__init__(**kwargs)
@@ -30,7 +31,7 @@ class CounterfactualESOL(Molecule):
             self.fp_radius
         )
 
-        self.encoder = utils.get_encoder("ESOL", Hyperparams.experiment)
+        self.model_to_explain = model_to_explain
         self.base_molecule = base_molecule
         self.target = target
 
@@ -54,9 +55,9 @@ class CounterfactualESOL(Molecule):
         self.i = 0
 
     def _encode(self, molecule):
-        output, encoding = self.encoder(molecule.x.float(),
-                                        molecule.edge_index,
-                                        molecule.batch)
+        output, encoding = self.model_to_explain(molecule.x.float(),
+                                                 molecule.edge_index,
+                                                 molecule.batch)
 
         return output, encoding.squeeze()
 
@@ -85,7 +86,7 @@ class CounterfactualESOL(Molecule):
             self.distance(pred, self.target) - self.base_loss
         ).item()
 
-        reward = gain * loss * self.w[0] + sim * self.w[2]
+        reward = gain * loss * self.w[0] + sim * self.w[1]
 
         return reward * self.discount_factor \
             ** (self.max_steps - self.num_steps_taken), loss, gain, sim

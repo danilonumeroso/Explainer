@@ -7,7 +7,7 @@ from torch.utils.tensorboard import SummaryWriter
 from models.explainer import Agent, CounterfactualESOL
 from config.explainer import Args, Path, Log, Elements
 from rdkit import Chem
-from utils import preprocess
+from utils import preprocess, get_split
 
 
 def main():
@@ -16,14 +16,13 @@ def main():
     writer = SummaryWriter(BasePath + '/plots')
     episodes = 0
 
-    *_, val, _, _  = preprocess('esol', Hyperparams)
+    dataset = get_split('esol', 'test', Hyperparams.experiment)
 
-    torch.manual_seed(torch.initial_seed())
-
-    molecule = val[Hyperparams.sample]
+    molecule = dataset[Hyperparams.sample]
     molecule.batch = torch.zeros(
         molecule.x.shape[0]
     ).long()
+
 
     Log(f'Molecule: {molecule.smiles}')
 
@@ -50,6 +49,8 @@ def main():
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+    model_to_explain = utils.get_dgn("esol", Hyperparams.experiment)
+
     environment = CounterfactualESOL(
         init_mol=molecule.smiles,
         target=molecule.y,
@@ -61,12 +62,9 @@ def main():
         allowed_ring_sizes=set(Hyperparams.allowed_ring_sizes),
         max_steps=Hyperparams.max_steps_per_episode,
         base_molecule=molecule,
-        weights=[0.8, 0.1, 0.2]
+        model_to_explain=model_to_explain,
+        weights=[0.8, 0.2]
     )
-
-    # DQN Inputs and Outputs:
-    # input: appended action (fingerprint_length + 1) .
-    # Output size is (1).
 
     agent = Agent(Hyperparams.fingerprint_length + 1, 1, device)
 
@@ -78,37 +76,26 @@ def main():
     for it in range(Hyperparams.epochs):
         steps_left = Hyperparams.max_steps_per_episode - environment.num_steps_taken
 
-        # Compute a list of all possible valid actions. (Here valid_actions
-        # stores the states after taking the possible actions)
         valid_actions = list(environment.get_valid_actions())
 
-        # Append each valid action to steps_left and store in observations.
         observations = np.vstack(
             [
                 np.append(
                     utils.numpy_morgan_fingerprint(
-                        act,
+                        smile,
                         Hyperparams.fingerprint_length,
                         Hyperparams.fingerprint_radius
                     ),
-                    steps_left,
+                    steps_left
                 )
-                for act in valid_actions
+                for smile in valid_actions
             ]
-        )  # (num_actions, fingerprint_length)
+        )
 
-        observations_tensor = torch.Tensor(observations)
-        # Get action through epsilon-greedy policy with the following scheduler.
-        # eps_threshold = hyp.epsilon_end + \
-        #     (hyp.epsilon_start - hyp.epsilon_end) * \
-        #     math.exp(-1. * it / hyp.epsilon_decay)
+        observations = torch.as_tensor(observations).float()
 
-        a = agent.get_action(observations_tensor, eps_threshold)
-
-        # Find out the new state (we store the new state in "action" here.
-        # Bit confusing but taken from original implementation)
+        a = agent.action_step(observations, eps_threshold)
         action = valid_actions[a]
-        # Take a step based on the action
         result = environment.step(action)
 
         action_fingerprint = np.append(
@@ -120,23 +107,14 @@ def main():
             steps_left,
         )
 
-        next_state, reward, done = result
+        _, reward, done = result
         reward, loss_, gain, sim = reward
 
         writer.add_scalar('ESOL/Reward', reward, it)
         writer.add_scalar('ESOL/Distance', loss_, it)
         writer.add_scalar('ESOL/Similarity', sim, it)
 
-        # Compute number of steps left
         steps_left = Hyperparams.max_steps_per_episode - environment.num_steps_taken
-
-        # Append steps_left to the new state and store in next_state
-        next_state = utils.numpy_morgan_fingerprint(
-            next_state,
-            Hyperparams.fingerprint_length,
-            Hyperparams.fingerprint_radius
-        )
-        # (fingerprint_length)
 
         action_fingerprints = np.vstack(
             [
@@ -150,23 +128,18 @@ def main():
                 )
                 for act in environment.get_valid_actions()
             ]
-        )  # (num_actions, fingerprint_length + 1)
+        )
 
-        # Update replay buffer (state: (fingerprint_length + 1), action: _,
-        # reward: (), next_state: (num_actions, fingerprint_length + 1),
-        # done: ()
-
-        agent.replay_buffer.add(
-            obs_t=action_fingerprint,  # (fingerprint_length + 1)
-            action=0,  # No use
-            reward=reward,
-            obs_tp1=action_fingerprints,  # (num_actions, fingerprint_length + 1)
-            done=float(result.terminated),
+        agent.replay_buffer.push(
+            torch.as_tensor(action_fingerprint).float(),
+            reward,
+            torch.as_tensor(action_fingerprints).float(),
+            float(result.terminated)
         )
 
         if it % Hyperparams.update_interval == 0 and agent.replay_buffer.__len__() >= Hyperparams.batch_size:
             for update in range(Hyperparams.num_updates_per_it):
-                loss = agent.update_params(
+                loss = agent.train_step(
                     Hyperparams.batch_size,
                     Hyperparams.gamma,
                     Hyperparams.polyak

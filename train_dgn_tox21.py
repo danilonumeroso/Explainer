@@ -140,6 +140,6 @@ for epoch in range(Hyperparams.epochs):
 
 
 model = get_dgn('tox21', Hyperparams.experiment_name)
-val_acc, val_prec, val_rec, val_f1, l = test(test_loader)
-print(f'TS -> Acc: {val_acc:.5f}  Rec: {val_rec:.5f}  \
-Prec: {val_prec:.5f}  F1: {val_f1:.5f}')
+test_acc, test_prec, test_rec, test_f1, l = test(test_loader)
+print(f'TS -> Acc: {test_acc:.5f}  Rec: {test_rec:.5f}  \
+Prec: {test_prec:.5f}  F1: {test_f1:.5f}')

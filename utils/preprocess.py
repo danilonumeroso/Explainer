@@ -2,8 +2,8 @@ import torch
 from config.encoder import Args, Path
 from torch_geometric.data import DataLoader, InMemoryDataset
 from torch.nn import functional as F
-from utils.molecules import check_molecule_validity
-from torch_geometric.datasets import TUDataset
+from utils.molecules import check_molecule_validity, pyg_to_mol, esol_pyg_to_mol
+from torch_geometric.datasets import TUDataset, MoleculeNet
 
 def pad(sample, n_pad):
     sample.x = F.pad(sample.x, (0,n_pad), "constant", 0)
@@ -20,8 +20,17 @@ def get_split(dataset_name, split, experiment):
 
         return ds
 
-    else:
-        return None
+    elif dataset_name.lower() == 'esol':
+
+        MoleculeNet.url = 'file://./data/esol-data.zip'
+        ds = MoleculeNet(
+            'data/esol',
+            name='ESOL'
+        )
+
+        ds.data, ds.slices = torch.load(f"runs/esol/{experiment}/splits/{split}.pth")
+
+        return ds
 
 
 def preprocess(dataset_name, args):
@@ -47,7 +56,7 @@ def _preprocess_tox21(args):
         [dataset_ts.get(idx) for idx in range(len(dataset_ts))]
     )
 
-    dataset_list = list(filter(check_molecule_validity, dataset_list))
+    dataset_list = list(filter(lambda mol: check_molecule_validity(mol, pyg_to_mol), dataset_list))
 
     POSITIVES = list(filter(lambda x: x.y == 1, dataset_list))
     NEGATIVES = list(filter(lambda x: x.y == 0, dataset_list))
@@ -82,30 +91,87 @@ def _preprocess_tox21(args):
 
 
 def _preprocess_esol(args):
-    from torch_geometric.datasets import MoleculeNet
+    MoleculeNet.url = 'file://./data/esol-data.zip'
 
     dataset = MoleculeNet(
-        Path.data('MoleculeNet'),
+        'data/esol',
         name='ESOL'
     )
+
+    dataset_list = (
+        [dataset.get(idx) for idx in range(len(dataset))]
+    )
+
+    # dataset_list = list(filter(lambda mol: check_molecule_validity(mol, esol_pyg_to_mol), dataset_list))
+
+    dataset.data, dataset.slices = dataset.collate(dataset_list)
 
     dataset = dataset.shuffle()
     n = len(dataset) // args.test_split
 
     train = dataset[n:]
     val = dataset[:n]
+    test = train[:n]
+
+    torch.save((train.data, train.slices), f'runs/esol/{args.experiment_name}/splits/train.pth')
+    torch.save((val.data, val.slices), f'runs/esol/{args.experiment_name}/splits/val.pth')
+    torch.save((test.data, test.slices), f'runs/esol/{args.experiment_name}/splits/test.pth')
+
 
     return (
         DataLoader(train, batch_size=args.batch_size),
         DataLoader(val,   batch_size=args.batch_size),
+        DataLoader(test,   batch_size=args.batch_size),
         train,
         val,
-        train.num_features,
+        test,
+        max(train.num_features, val.num_features, test.num_features),
         train.num_classes,
     )
 
+def _preprocess_alchemy(args):
+    from torch_geometric.datasets import TUDataset
+
+    dataset = TUDataset(
+        'data/qm9',
+        name='QM9'
+    )
+    input(dataset[1].x)
+    dataset_list = (
+        [dataset.get(idx) for idx in range(len(dataset))]
+    )
+
+    dataset_list = list(filter(check_molecule_validity, dataset_list))
+
+    dataset.data, dataset.slices = dataset.collate(dataset_list)
+
+    input(dataset)
+
+    dataset = dataset.shuffle()
+    n = len(dataset) // args.test_split
+
+    train = dataset[n:]
+    val = dataset[:n]
+    test = train[:n]
+
+    torch.save((train.data, train.slices), f'runs/alchemy/{args.experiment_name}/splits/train.pth')
+    torch.save((val.data, val.slices), f'runs/alchemy/{args.experiment_name}/splits/val.pth')
+    torch.save((test.data, test.slices), f'runs/alchemy/{args.experiment_name}/splits/test.pth')
+
+
+    return (
+        DataLoader(train, batch_size=args.batch_size),
+        DataLoader(val,   batch_size=args.batch_size),
+        DataLoader(test,   batch_size=args.batch_size),
+        train,
+        val,
+        test,
+        max(train.num_features, val.num_features, test.num_features),
+        train.num_classes,
+    )
 
 _PREPROCESS = {
     'tox21': _preprocess_tox21,
-    'esol': _preprocess_esol
+    'esol': _preprocess_esol,
+    'alchemy': _preprocess_alchemy,
 }

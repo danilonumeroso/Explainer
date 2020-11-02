@@ -5,7 +5,7 @@ from models.explainer.Environment import Molecule
 from config.explainer import Args
 from torch.nn import functional as F
 
-class Counterfactual(Molecule):
+class CounterfactualTox21(Molecule):
     def __init__(
         self,
         encoder,

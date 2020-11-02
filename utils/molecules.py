@@ -6,6 +6,7 @@ from torch_geometric.data import Data
 from config.explainer import Args, Elements\
     , Edges, EdgesToRDKit, Path
 
+from torch_geometric.datasets.molecule_net import x_map, e_map
 import numpy as np
 import sys
 import os
@@ -79,15 +80,42 @@ def pyg_to_mol(pyg_mol):
 
     return mol
 
+def esol_pyg_to_mol(pyg_mol):
+    mol = Chem.RWMol()
+
+    X = pyg_mol.x.numpy().tolist()
+    X = [
+        Chem.Atom(x[0])
+        for x in X
+    ]
+
+    E = pyg_mol.edge_index.t()
+
+    for x in X:
+        mol.AddAtom(x)
+
+    for (u, v), attr in zip(E, pyg_mol.edge_attr):
+        u = u.item()
+        v = v.item()
+        attr = attr.numpy().tolist()
+        attr = attr[0]
+
+        if mol.GetBondBetweenAtoms(u, v):
+            continue
+
+
+        mol.AddBond(u, v, Chem.BondType.values[attr])
+
+    return mol
 
 def pyg_to_smiles(pyg_mol):
     return Chem.MolToSmiles(
         pyg_to_mol(pyg_mol)
     )
 
-def check_molecule_validity(mol):
+def check_molecule_validity(mol, transform):
     if type(mol) == torch_geometric.data.Data:
-        mol = pyg_to_mol(mol)
+        mol = transform(mol)
 
     return Chem.SanitizeMol(mol, catchErrors=True) == Chem.SANITIZE_NONE
 
@@ -125,7 +153,6 @@ def mol_to_pyg(molecule):
     return pyg_mol
 
 def mol_to_esol_pyg(mol):
-    from torch_geometric.datasets.molecule_net import x_map, e_map
     xs = []
     for atom in mol.GetAtoms():
         x = []

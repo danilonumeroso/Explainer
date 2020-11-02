@@ -7,7 +7,7 @@ import json
 from torch.utils.tensorboard import SummaryWriter
 from models.encoder import GCNN
 from config.encoder import Args
-from utils import preprocess, get_dgn
+from utils import preprocess
 
 Hyperparams = Args()
 torch.manual_seed(Hyperparams.seed)
@@ -23,7 +23,7 @@ else:
 
 writer = SummaryWriter(BasePath + '/plots')
 
-train_loader, val_loader, test_loader, *extra = preprocess('esol', Hyperparams)
+train_loader, val_loader, test_loader, *extra = preprocess('alchemy', Hyperparams)
 train_ds, val_ds, test_ds, num_features, num_classes = extra
 
 len_train = len(train_ds)
@@ -119,4 +119,4 @@ for epoch in range(Hyperparams.epochs):
 
 model = get_dgn('esol', Hyperparams.experiment_name)
 test_error = test(epoch, test_loader, len_test)
-print(f'Test Error: {test_error:.5f}')
+print(f'Val Error: {test_error:.5f}')
