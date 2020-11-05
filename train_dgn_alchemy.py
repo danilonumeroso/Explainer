@@ -11,7 +11,7 @@ from utils import preprocess
 
 Hyperparams = Args()
 torch.manual_seed(Hyperparams.seed)
-BasePath = './runs/esol/' + Hyperparams.experiment_name
+BasePath = './runs/alchemy/' + Hyperparams.experiment_name
 if not osp.exists(BasePath):
     os.makedirs(BasePath + "/ckpt")
     os.makedirs(BasePath + "/plots")

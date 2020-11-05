@@ -85,7 +85,7 @@ def esol_pyg_to_mol(pyg_mol):
 
     X = pyg_mol.x.numpy().tolist()
     X = [
-        Chem.Atom(x[0])
+        Chem.Atom(int(x[0]))
         for x in X
     ]
 
@@ -111,6 +111,11 @@ def esol_pyg_to_mol(pyg_mol):
 def pyg_to_smiles(pyg_mol):
     return Chem.MolToSmiles(
         pyg_to_mol(pyg_mol)
+    )
+
+def esol_pyg_to_smiles(pyg_mol):
+    return Chem.MolToSmiles(
+        esol_pyg_to_mol(pyg_mol)
     )
 
 def check_molecule_validity(mol, transform):
@@ -188,7 +193,7 @@ def mol_to_esol_pyg(mol):
     edge_index = edge_index.t().to(torch.long).view(2, -1)
     edge_attr = torch.tensor(edge_attrs, dtype=torch.float).view(-1, 3)
 
-            # Sort indices.
+    # Sort indices.
     if edge_index.numel() > 0:
         perm = (edge_index[0] * x.size(0) + edge_index[1]).argsort()
         edge_index, edge_attr = edge_index[:, perm], edge_attr[perm]

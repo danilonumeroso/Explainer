@@ -17,53 +17,49 @@ def main():
     episodes = 0
 
     dataset = get_split('esol', 'test', Hyperparams.experiment)
-    molecule = dataset[Hyperparams.sample]
-    molecule.batch = torch.zeros(
-        molecule.x.shape[0]
-    ).long()
+    original_molecule = dataset[Hyperparams.sample]
+    original_molecule.x = original_molecule.x.float()
+    model_to_explain = utils.get_dgn("esol", Hyperparams.experiment)
 
+    pred_solub, original_encoding = model_to_explain(original_molecule.x,
+                                                     original_molecule.edge_index)
 
-    Log(f'Molecule: {molecule.smiles}')
+    Log(f'Molecule: {original_molecule.smiles}')
 
     utils.TopKCounterfactualsESOL.init(
-        molecule.smiles,
+        original_molecule.smiles,
         Hyperparams.sample,
         BasePath + "/counterfacts"
     )
 
-    mol_ = Chem.MolFromSmiles(molecule.smiles)
-
     atoms_ = np.unique(
-        [x.GetSymbol() for x in mol_.GetAtoms()]
+        [x.GetSymbol() for x in Chem.MolFromSmiles(original_molecule.smiles).GetAtoms()]
     )
-
-    Hyperparams.atom_types.sort()
-    atoms_.sort()
-
-    if not np.array_equal(atoms_, Hyperparams.atom_types):
-        Log("[Warn] Hyperparams.atom_types differ from the" +
-            " actual atoms composing the real molecule.")
-
-        Hyperparams = Hyperparams._replace(atom_types=atoms_)
-        Log("Fixed", Hyperparams.atom_types)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    model_to_explain = utils.get_dgn("esol", Hyperparams.experiment)
+    S = [
+        model_to_explain(mol.x.float(), mol.edge_index)[1]
+        for mol in dataset
+    ]
+    S = [utils.cosine_similarity(encoding, original_encoding) for encoding in S]
 
     environment = CounterfactualESOL(
-        init_mol=molecule.smiles,
-        target=molecule.y,
+        init_mol=original_molecule.smiles,
         discount_factor=Hyperparams.discount,
-        atom_types=set(Hyperparams.atom_types),
-        allow_removal=Hyperparams.allow_removal,
-        allow_no_modification=Hyperparams.allow_no_modification,
-        allow_bonds_between_rings=Hyperparams.allow_bonds_between_rings,
+        atom_types=set(atoms_),
+        allow_removal=True,
+        allow_no_modification=False,
+        allow_bonds_between_rings=True,
         allowed_ring_sizes=set(Hyperparams.allowed_ring_sizes),
         max_steps=Hyperparams.max_steps_per_episode,
-        base_molecule=molecule,
         model_to_explain=model_to_explain,
-        weights=[0.8, 0.2]
+        original_molecule=original_molecule,
+        target=original_molecule.y,
+        original_prediction=pred_solub,
+        weight_sim=0.2,
+        similarity_measure="combined",
+        similarity_set=S
     )
 
     agent = Agent(Hyperparams.fingerprint_length + 1, 1, device)
@@ -149,10 +145,8 @@ def main():
 
         if done:
             final_reward = reward
-            if episodes != 0 and episodes % 2 == 0:
-                Log(f'Episode {episodes}::Final Molecule Reward: {final_reward:.6f} (loss: {loss_:.6f}, gain: {gain:.6f}, sim: {sim:.6f})')
-                Log(f'Episose {episodes}::Mean Loss: {np.array(batch_losses).mean()}')
-                Log(f'Episode {episodes}::Final Molecule: {action}')
+            Log(f'Episode {episodes}::Final Molecule Reward: {final_reward:.6f} (loss: {loss_:.6f}, gain: {gain:.6f}, sim: {sim:.6f})')
+            Log(f'Episode {episodes}::Final Molecule: {action}')
 
             utils.TopKCounterfactualsESOL.insert({
                 'smiles': action,

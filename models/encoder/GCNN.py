@@ -28,7 +28,10 @@ class GCNN(torch.nn.Module):
 
         self.p = dropout
 
-    def forward(self, x, edge_index, batch):
+    def forward(self, x, edge_index, batch=None):
+
+        if batch is None:
+            batch = torch.zeros(x.shape[0]).long()
 
         x = F.relu(self.conv1(x, edge_index))
         x1 = torch.cat([gmp(x, batch), gap(x, batch)], dim=1)

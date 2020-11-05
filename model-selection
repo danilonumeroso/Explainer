@@ -1,0 +1,20 @@
+#!/bin/bash
+
+echo $BASH_VERSION
+NAME=train_dgn_$1.py
+OPT=Adam
+
+for LR in 0.005 0.001 0.0005 0.0001
+do
+    for BS in {20..140..40}
+    do
+        for HS in {32..256..32}
+        do
+            SEED=$RANDOM
+            EXPERIMENT="${OPT}_LR_${LR}_BS_${BS}_HS_${HS}"
+            echo "python ${NAME} --lr ${LR} --hidden_size ${HS} --batch_size ${BS} --seed ${SEED}"
+            python $NAME --lr $LR --hidden_size $HS --batch_size $BS --experiment_name $EXPERIMENT --seed $SEED
+            echo "--------------------DONE------------------------"
+        done
+    done
+done

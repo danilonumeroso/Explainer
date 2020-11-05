@@ -165,9 +165,17 @@ def _preprocess_alchemy(args):
 
     n = len(data_list) // args.test_split
 
-    train = dataset[n:]
-    val = dataset[:n]
-    test = train[:n]
+    train_data = data_list[n:]
+    val_data = data_list[:n]
+    test_data = train_data[:n]
+
+    train = dataset
+    val = dataset.copy()
+    test = dataset.copy()
+
+    train.data, train.slices = train.collate(train_data)
+    val.data, val.slices = train.collate(val_data)
+    test.data, test.slices = train.collate(test_data)
 
     torch.save((train.data, train.slices), f'runs/alchemy/{args.experiment_name}/splits/train.pth')
     torch.save((val.data, val.slices), f'runs/alchemy/{args.experiment_name}/splits/val.pth')

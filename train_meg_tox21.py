@@ -4,12 +4,13 @@ import numpy as np
 import torchvision
 import json
 import os
+import utils
 
 from torch_geometric.datasets import TUDataset
+from torch_geometric.data import DataLoader
 from models.explainer import CounterfactualTox21, Agent, CounterfactualESOL
 from config.explainer import Args, Path, Log, Elements
 from torch.utils.tensorboard import SummaryWriter
-from utils import preprocess, molecule_encoding, get_split
 from rdkit import Chem
 
 
@@ -19,17 +20,26 @@ def main():
     writer = SummaryWriter(BasePath + '/plots')
     episodes = 0
 
-    dataset = get_split('tox21', 'test', Hyperparams.experiment)
+    dataset = utils.get_split('tox21', 'test', Hyperparams.experiment)
+    dl = DataLoader(dataset, batch_size=None)
+    set_ = dataset[torch.randint(0, len(dataset), (25,))]
 
-    molecule = dataset[Hyperparams.sample]
-    molecule.batch = torch.zeros(
-        molecule.x.shape[0]
-    ).long()
+    original_molecule = dataset[Hyperparams.sample]
+    model_to_explain = utils.get_dgn("Tox21", Hyperparams.experiment)
 
-    Log(f'Molecule: {utils.pyg_to_smiles(molecule)}')
+    pred_class, original_encoding = model_to_explain(original_molecule.x,
+                                                     original_molecule.edge_index)
+
+    pred_class = pred_class.max(dim=1)[1]
+
+    counterfactual_class = (1 - original_molecule.y.item())
+    assert pred_class != counterfactual_class
+
+    smiles = utils.pyg_to_smiles(original_molecule)
+    Log(f'Molecule: {smiles}')
 
     utils.TopKCounterfactualsTox21.init(
-        utils.pyg_to_smiles(molecule),
+        smiles,
         Hyperparams.sample,
         BasePath + '/counterfacts'
     )
@@ -37,39 +47,39 @@ def main():
     atoms_ = [
         Elements(e).name
         for e in np.unique(
-            [x.tolist().index(1) for x in molecule.x.numpy()]
+            [x.tolist().index(1) for x in original_molecule.x.numpy()]
         )
     ]
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    base_model = utils.get_dgn("Tox21", Hyperparams.experiment)
+    S = [
+        model_to_explain(mol.x, mol.edge_index)[1]
+        for mol in filter(lambda x: x.y.item() == counterfactual_class, dataset)
+    ]
+    S = [utils.cosine_similarity(encoding, original_encoding) for encoding in S]
 
     environment = CounterfactualTox21(
-        init_mol=utils.pyg_to_smiles(molecule),
-        mol_fp=utils.morgan_fingerprint(
-            utils.pyg_to_smiles(molecule),
-            Hyperparams.fingerprint_length,
-            Hyperparams.fingerprint_radius
-        ),
+        init_mol=smiles,
         discount_factor=Hyperparams.discount,
         atom_types=set(atoms_),
-        allow_removal=Hyperparams.allow_removal,
-        allow_no_modification=Hyperparams.allow_no_modification,
-        allow_bonds_between_rings=Hyperparams.allow_bonds_between_rings,
+        allow_removal=True,
+        allow_no_modification=False,
+        allow_bonds_between_rings=True,
         allowed_ring_sizes=set(Hyperparams.allowed_ring_sizes),
         max_steps=Hyperparams.max_steps_per_episode,
-        base_molecule=molecule,
-        counterfactual_class=(1 - molecule.y.item()),
+        model_to_explain=model_to_explain,
+        counterfactual_class=counterfactual_class,
         weight_sim=0.2,
-        encoder=base_model
+        similarity_measure="combined",
+        similarity_set=S
     )
 
     agent = Agent(Hyperparams.fingerprint_length + 1, 1, device)
 
     environment.initialize()
 
-    eps_threshold = 1.0
+    eps = 1.0
     batch_losses = []
 
     for it in range(Hyperparams.epochs):
@@ -93,7 +103,7 @@ def main():
 
         observations = torch.as_tensor(observations).float()
 
-        a = agent.action_step(observations, eps_threshold)
+        a = agent.action_step(observations, eps)
         action = valid_actions[a]
         result = environment.step(action)
 
@@ -148,17 +158,16 @@ def main():
 
         if done:
             final_reward = reward
-            if episodes != 0 and episodes % 2 == 0:
-                Log(f'Episode {episodes}::Final Molecule Reward: {final_reward:.6f} (pred: {pred:.6f}, sim: {sim:.6f})')
-                Log(f'Episode {episodes}::Final Molecule: {action}')
+            episodes += 1
+            Log(f'Episode {episodes}::Final Molecule Reward: {final_reward:.6f} (pred: {pred:.6f}, sim: {sim:.6f})')
+            Log(f'Episode {episodes}::Final Molecule: {action}')
 
             utils.TopKCounterfactualsTox21.insert({
                 'smiles': action,
                 'score': final_reward
             })
 
-            episodes += 1
-            eps_threshold *= 0.9985
+            eps *= 0.9985
             batch_losses = []
             environment.initialize()
 

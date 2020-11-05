@@ -12,7 +12,9 @@ from config.encoder import Args
 from utils import preprocess, get_dgn
 
 Hyperparams = Args()
+
 torch.manual_seed(Hyperparams.seed)
+
 BasePath = './runs/tox21/' + Hyperparams.experiment_name
 if not osp.exists(BasePath):
     os.makedirs(BasePath + "/ckpt")
@@ -138,9 +140,3 @@ for epoch in range(Hyperparams.epochs):
                        'val_f1': val_f1,
                        'train_prec': train_prec,
                        'val_prec': val_prec}, outfile)
-
-
-model = get_dgn('tox21', Hyperparams.experiment_name)
-test_acc, test_prec, test_rec, test_f1, l = test(test_loader)
-print(f'TS -> Acc: {test_acc:.5f}  Rec: {test_rec:.5f}  \
-Prec: {test_prec:.5f}  F1: {test_f1:.5f}')
