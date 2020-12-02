@@ -1,4 +1,5 @@
 import utils
+import torch
 
 from rdkit import Chem, DataStructs
 from models.explainer.Environment import Molecule
@@ -6,25 +7,25 @@ from config.explainer import Args
 from torch.nn import functional as F
 from utils import tanimoto_similarity, rescaled_cosine_similarity, cosine_similarity
 
-class CounterfactualTox21(Molecule):
+
+class CF_Tox21(Molecule):
     def __init__(
             self,
             model_to_explain,
             original_molecule,
-            counterfactual_class,
             discount_factor,
             similarity_set=None,
             weight_sim=0.5,
             similarity_measure="tanimoto",
             **kwargs
     ):
-        super(CounterfactualTox21, self).__init__(**kwargs)
+        super(CF_Tox21, self).__init__(**kwargs)
 
         Hyperparams = Args()
 
         self.fp_length = Hyperparams.fingerprint_length
         self.fp_radius = Hyperparams.fingerprint_radius
-        self.counterfactual_class = counterfactual_class
+        self.class_to_optimise = 1 - original_molecule.y.item()
         self.discount_factor = discount_factor
         self.model_to_explain = model_to_explain
         self.weight_sim = weight_sim
@@ -67,12 +68,23 @@ class CounterfactualTox21(Molecule):
         molecule = utils.mol_to_pyg(molecule)
 
         out, _ = self.model_to_explain(molecule.x, molecule.edge_index)
-        out = F.log_softmax(out, dim=-1)
-        sim = self.similarity(self.make_encoding(molecule), self.original_encoding)
+        out = F.softmax(out, dim=-1).squeeze().detach()
 
-        pred = 1 + max(out[0][self.counterfactual_class].item(), -1)
+        sim_score = self.similarity(self.make_encoding(molecule), self.original_encoding)
+        pred_score = out[self.class_to_optimise].item()
+        pred_class = torch.argmax(out).item()
 
-        reward = pred * (1 - self.weight_sim) + sim * self.weight_sim
+        reward = pred_score * (1 - self.weight_sim) + sim_score * self.weight_sim
 
         return reward * self.discount_factor \
-            ** (self.max_steps - self.num_steps_taken), pred, sim
+            ** (self.max_steps - self.num_steps_taken), pred_score, sim_score, pred_class
+
+
+class NCF_Tox21(CF_Tox21):
+
+    def __init__(
+            self,
+            **kwargs
+    ):
+        super(NCF_Tox21, self).__init__(**kwargs)
+        self.class_to_optimise = kwargs['original_molecule'].y.item()

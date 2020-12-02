@@ -8,21 +8,18 @@ import utils
 
 from torch_geometric.datasets import TUDataset
 from torch_geometric.data import DataLoader
-from models.explainer import CounterfactualTox21, Agent, CounterfactualESOL
+from models.explainer import CF_Tox21, NCF_Tox21, Agent
 from config.explainer import Args, Path, Log, Elements
 from torch.utils.tensorboard import SummaryWriter
 from rdkit import Chem
-
+from utils import SortedQueue
 
 def main():
     Hyperparams = Args()
     BasePath = './runs/tox21/' + Hyperparams.experiment
     writer = SummaryWriter(BasePath + '/plots')
-    episodes = 0
 
     dataset = utils.get_split('tox21', 'test', Hyperparams.experiment)
-    dl = DataLoader(dataset, batch_size=None)
-    set_ = dataset[torch.randint(0, len(dataset), (25,))]
 
     original_molecule = dataset[Hyperparams.sample]
     model_to_explain = utils.get_dgn("Tox21", Hyperparams.experiment)
@@ -31,12 +28,10 @@ def main():
                                                      original_molecule.edge_index)
 
     pred_class = pred_class.max(dim=1)[1]
-
-    counterfactual_class = (1 - original_molecule.y.item())
-    assert pred_class != counterfactual_class
+    assert pred_class == original_molecule.y.item()
 
     smiles = utils.pyg_to_smiles(original_molecule)
-    Log(f'Molecule: {smiles}')
+    print(f'Molecule: {smiles}')
 
     utils.TopKCounterfactualsTox21.init(
         smiles,
@@ -51,42 +46,61 @@ def main():
         )
     ]
 
+    params = {
+        # General-purpose params
+        'init_mol': smiles,
+        'discount_factor': Hyperparams.discount,
+        'atom_types': set(atoms_),
+        'allow_removal': True,
+        'allow_no_modification': False,
+        'allow_bonds_between_rings': True,
+        'allowed_ring_sizes': set(Hyperparams.allowed_ring_sizes),
+        'max_steps': Hyperparams.max_steps_per_episode,
+        # Task-specific params
+        'original_molecule': original_molecule,
+        'model_to_explain': model_to_explain,
+        'weight_sim': 0.2,
+        'similarity_measure': 'combined'
+    }
+
+    N = 20
+    cf_queue = SortedQueue(N, sort_predicate=lambda mol: mol['score'])
+    cf_env = CF_Tox21(**params)
+    cf_env.initialize()
+
+    ncf_queue = SortedQueue(N, sort_predicate=lambda mol: mol['score'])
+    ncf_env = NCF_Tox21(**params)
+    ncf_env.initialize()
+
+    meg_train(writer, cf_env, cf_queue, marker="cf")
+    meg_train(writer, ncf_env, ncf_queue, marker="ncf")
+
+    overall_queue = []
+    overall_queue.append({
+        'marker': 'og',
+        'smiles': smiles,
+        'pred_class': original_molecule.y.item(),
+    })
+    overall_queue.extend(cf_queue.data_)
+    overall_queue.extend(ncf_queue.data_)
+
+    with open(BasePath + f"/{Hyperparams.sample}.json", "w") as outf:
+        json.dump(overall_queue, outf, indent=2)
+
+
+def meg_train(writer, environment, queue, marker):
+    Hyperparams = Args()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-    S = [
-        model_to_explain(mol.x, mol.edge_index)[1]
-        for mol in filter(lambda x: x.y.item() == counterfactual_class, dataset)
-    ]
-    S = [utils.cosine_similarity(encoding, original_encoding) for encoding in S]
-
-    environment = CounterfactualTox21(
-        init_mol=smiles,
-        discount_factor=Hyperparams.discount,
-        atom_types=set(atoms_),
-        allow_removal=True,
-        allow_no_modification=False,
-        allow_bonds_between_rings=True,
-        allowed_ring_sizes=set(Hyperparams.allowed_ring_sizes),
-        max_steps=Hyperparams.max_steps_per_episode,
-        model_to_explain=model_to_explain,
-        counterfactual_class=counterfactual_class,
-        weight_sim=0.2,
-        similarity_measure="combined",
-        similarity_set=S
-    )
-
     agent = Agent(Hyperparams.fingerprint_length + 1, 1, device)
-
-    environment.initialize()
 
     eps = 1.0
     batch_losses = []
+    episodes = 0
 
     for it in range(Hyperparams.epochs):
+
         steps_left = Hyperparams.max_steps_per_episode - environment.num_steps_taken
-
         valid_actions = list(environment.get_valid_actions())
-
         observations = np.vstack(
             [
                 np.append(
@@ -102,7 +116,6 @@ def main():
         )
 
         observations = torch.as_tensor(observations).float()
-
         a = agent.action_step(observations, eps)
         action = valid_actions[a]
         result = environment.step(action)
@@ -116,8 +129,8 @@ def main():
             steps_left
         )
 
-        _, reward, done = result
-        reward, pred, sim = reward
+        _, env_out, done = result
+        reward, pred, sim, pred_class = env_out
 
         writer.add_scalar('Tox21/Reward', reward, it)
         writer.add_scalar('Tox21/Prediction', pred, it)
@@ -159,17 +172,23 @@ def main():
         if done:
             final_reward = reward
             episodes += 1
-            Log(f'Episode {episodes}::Final Molecule Reward: {final_reward:.6f} (pred: {pred:.6f}, sim: {sim:.6f})')
-            Log(f'Episode {episodes}::Final Molecule: {action}')
 
-            utils.TopKCounterfactualsTox21.insert({
+            print(f'Episode {episodes}::Final Molecule Reward: {final_reward:.6f} (pred: {pred:.6f}, sim: {sim:.6f})')
+            print(f'Episode {episodes}::Final Molecule: {action}')
+
+            queue.insert({
+                'marker': marker,
                 'smiles': action,
-                'score': final_reward
+                'pred_class': pred_class,
+                'score': final_reward,
+                'pred_score': pred,
+                'sim_score': sim
             })
 
             eps *= 0.9985
             batch_losses = []
             environment.initialize()
+
 
 if __name__ == '__main__':
     main()
