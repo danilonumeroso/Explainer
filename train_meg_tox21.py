@@ -12,7 +12,8 @@ from models.explainer import CF_Tox21, NCF_Tox21, Agent
 from config.explainer import Args, Path, Log, Elements
 from torch.utils.tensorboard import SummaryWriter
 from rdkit import Chem
-from utils import SortedQueue
+from utils import SortedQueue, morgan_bit_fingerprint
+from torch.nn import functional as F
 
 def main():
     Hyperparams = Args()
@@ -24,20 +25,16 @@ def main():
     original_molecule = dataset[Hyperparams.sample]
     model_to_explain = utils.get_dgn("Tox21", Hyperparams.experiment)
 
-    pred_class, original_encoding = model_to_explain(original_molecule.x,
-                                                     original_molecule.edge_index)
+    out, original_encoding = model_to_explain(original_molecule.x,
+                                              original_molecule.edge_index)
 
-    pred_class = pred_class.max(dim=1)[1]
+    logits = F.softmax(out, dim=-1).detach().squeeze()
+    pred_class = logits.argmax().item()
+
     assert pred_class == original_molecule.y.item()
 
     smiles = utils.pyg_to_smiles(original_molecule)
     print(f'Molecule: {smiles}')
-
-    utils.TopKCounterfactualsTox21.init(
-        smiles,
-        Hyperparams.sample,
-        BasePath + '/counterfacts'
-    )
 
     atoms_ = [
         Elements(e).name
@@ -80,11 +77,12 @@ def main():
         'marker': 'og',
         'smiles': smiles,
         'pred_class': original_molecule.y.item(),
+        'certainty': logits[original_molecule.y.item()].item()
     })
     overall_queue.extend(cf_queue.data_)
     overall_queue.extend(ncf_queue.data_)
 
-    with open(BasePath + f"/{Hyperparams.sample}.json", "w") as outf:
+    with open(BasePath + f"/counterfacts/{Hyperparams.sample}.json", "w") as outf:
         json.dump(overall_queue, outf, indent=2)
 
 
@@ -101,17 +99,18 @@ def meg_train(writer, environment, queue, marker):
 
         steps_left = Hyperparams.max_steps_per_episode - environment.num_steps_taken
         valid_actions = list(environment.get_valid_actions())
+
         observations = np.vstack(
             [
                 np.append(
-                    utils.numpy_morgan_fingerprint(
-                        smile,
+                    morgan_bit_fingerprint(
+                        smiles,
                         Hyperparams.fingerprint_length,
                         Hyperparams.fingerprint_radius
-                    ),
+                    ).numpy(),
                     steps_left
                 )
-                for smile in valid_actions
+                for smiles in valid_actions
             ]
         )
 
@@ -121,11 +120,11 @@ def meg_train(writer, environment, queue, marker):
         result = environment.step(action)
 
         action_fingerprint = np.append(
-            utils.numpy_morgan_fingerprint(
+            morgan_bit_fingerprint(
                 action,
                 Hyperparams.fingerprint_length,
                 Hyperparams.fingerprint_radius
-            ),
+            ).numpy(),
             steps_left
         )
 
@@ -141,11 +140,11 @@ def meg_train(writer, environment, queue, marker):
         action_fingerprints = np.vstack(
             [
                 np.append(
-                    utils.numpy_morgan_fingerprint(
+                    morgan_bit_fingerprint(
                         act,
                         Hyperparams.fingerprint_length,
                         Hyperparams.fingerprint_radius
-                    ),
+                    ).numpy(),
                     steps_left,
                 )
                 for act in environment.get_valid_actions()
@@ -181,8 +180,8 @@ def meg_train(writer, environment, queue, marker):
                 'smiles': action,
                 'pred_class': pred_class,
                 'score': final_reward,
-                'pred_score': pred,
-                'sim_score': sim
+                'certainty': pred,
+                'similarity': sim
             })
 
             eps *= 0.9985

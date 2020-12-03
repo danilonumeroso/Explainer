@@ -15,6 +15,12 @@ import torch_geometric
 
 sys.path.append(os.path.join(RDConfig.RDContribDir, "SA_Score"))
 
+def mol_from_smiles(smiles):
+    return Chem.MolFromSmiles(smiles)
+
+def mol_to_smiles(mol):
+    return Chem.MolToSmiles(mol)
+
 def morgan_fingerprint(smiles, fp_length, fp_radius):
     if smiles is None:
         return None
@@ -29,9 +35,6 @@ def morgan_fingerprint(smiles, fp_length, fp_radius):
         fp_radius,
         fp_length
     )
-
-
-
 
 def numpy_morgan_fingerprint(smiles, fp_length, fp_radius):
     fingerprint = morgan_fingerprint(smiles, fp_length, fp_radius)
