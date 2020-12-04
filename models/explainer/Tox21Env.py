@@ -5,7 +5,7 @@ from rdkit import Chem, DataStructs
 from models.explainer.Environment import Molecule
 from config.explainer import Args
 from torch.nn import functional as F
-from utils import tanimoto_similarity, rescaled_cosine_similarity, cosine_similarity
+from utils import get_similarity, mol_to_smiles
 
 
 class CF_Tox21(Molecule):
@@ -30,34 +30,14 @@ class CF_Tox21(Molecule):
         self.model_to_explain = model_to_explain
         self.weight_sim = weight_sim
 
-        if similarity_measure == "tanimoto":
-            self.similarity = lambda x, y: tanimoto_similarity(x, y)
 
-            self.make_encoding = lambda x: utils.morgan_fingerprint(utils.pyg_to_smiles(x),
-                                                                    self.fp_length,
-                                                                    self.fp_radius)
-            self.original_encoding = self.make_encoding(original_molecule)
-
-        elif similarity_measure == "rescaled_neural_encoding":
-            self.similarity = lambda x, y: rescaled_cosine_similarity(x,
-                                                                      y,
-                                                                      similarity_set)
-
-            self.make_encoding = lambda x: model_to_explain(x.x, x.edge_index)[1]
-            self.original_encoding = self.make_encoding(original_molecule)
-
-        elif similarity_measure == "neural_encoding":
-            self.similarity = lambda x, y: cosine_similarity(x, y)
-
-            self.make_encoding = lambda x: model_to_explain(x.x, x.edge_index)[1]
-            self.original_encoding = self.make_encoding(original_molecule)
-
-        elif similarity_measure == "combined":
-            self.similarity = lambda x, y: 0.5 * cosine_similarity(x[0], y[0]) + 0.5 * tanimoto_similarity(x[1], y[1])
-
-            self.make_encoding = lambda x: (model_to_explain(x.x, x.edge_index)[1], utils.morgan_fingerprint(utils.pyg_to_smiles(x), self.fp_length, self.fp_radius))
-            self.original_encoding = self.make_encoding(original_molecule)
-
+        self.similarity, self.make_encoding, \
+            self.original_encoding = get_similarity(similarity_measure,
+                                                    mol_to_smiles,
+                                                    model_to_explain,
+                                                    original_molecule,
+                                                    self.fp_length,
+                                                    self.fp_radius)
 
     def _reward(self):
         molecule = Chem.MolFromSmiles(self._state)

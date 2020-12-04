@@ -2,7 +2,7 @@ import torch
 from config.encoder import Args, Path
 from torch_geometric.data import DataLoader, InMemoryDataset
 from torch.nn import functional as F
-from utils.molecules import check_molecule_validity, pyg_to_mol, esol_pyg_to_mol
+from utils.molecules import check_molecule_validity, pyg_to_mol_tox21, pyg_to_mol_esol
 from torch_geometric.datasets import TUDataset, MoleculeNet
 import random
 
@@ -57,9 +57,7 @@ def _preprocess_tox21(args):
         [dataset_ts.get(idx) for idx in range(len(dataset_ts))]
     )
 
-
-
-    data_list = list(filter(lambda mol: check_molecule_validity(mol, pyg_to_mol), data_list))
+    data_list = list(filter(lambda mol: check_molecule_validity(mol, pyg_to_mol_tox21), data_list))
 
     POSITIVES = list(filter(lambda x: x.y == 1, data_list))
     NEGATIVES = list(filter(lambda x: x.y == 0, data_list))

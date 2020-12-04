@@ -1,6 +1,6 @@
 from rdkit import DataStructs
-from utils import morgan_fingerprint
 from torch.nn import functional as F
+from utils.fingerprints import morgan_bit_fingerprint as mfp
 
 def tanimoto_similarity(fp1, fp2):
     return DataStructs.TanimotoSimilarity(fp1, fp2)
@@ -15,3 +15,31 @@ def rescaled_cosine_similarity(molecule_a, molecule_b, S, scale="mean"):
     min_ = min(S) if scale == "min" else sum(S) / len(S)
 
     return (value - min_) / (max_ - min_)
+
+def get_similarity(name, transform, model, original_molecule, fp_len=None, fp_rad=None):
+
+    if name == "tanimoto":
+        similarity = lambda x, y: tanimoto_similarity(x, y)
+
+        make_encoding = lambda x: mfp(transform(x), fp_len, fp_rad).fp
+        original_encoding = make_encoding(original_molecule)
+
+    elif name == "rescaled_neural_encoding":
+        similarity = lambda x, y: rescaled_cosine_similarity(x, y, similarity_set)
+
+        make_encoding = lambda x: model(x.x, x.edge_index)[1]
+        original_encoding = make_encoding(original_molecule)
+
+    elif name == "neural_encoding":
+        similarity = lambda x, y: cosine_similarity(x, y)
+
+        make_encoding = lambda x: model(x.x, x.edge_index)[1]
+        original_encoding = make_encoding(original_molecule)
+
+    elif name == "combined":
+        similarity = lambda x, y: 0.5 * cosine_similarity(x[0], y[0]) + 0.5 * tanimoto_similarity(x[1], y[1])
+
+        make_encoding = lambda x: (model(x.x, x.edge_index)[1], mfp(transform(x), fp_len, fp_rad).fp)
+        original_encoding = make_encoding(original_molecule)
+
+    return similarity, make_encoding, original_encoding

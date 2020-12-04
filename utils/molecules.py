@@ -1,3 +1,9 @@
+import numpy as np
+import sys
+import os
+import torch
+import torch_geometric
+
 from rdkit import Chem
 from rdkit import DataStructs
 from rdkit.Chem import AllChem
@@ -5,49 +11,25 @@ from rdkit.Chem import RDConfig
 from torch_geometric.data import Data
 from config.explainer import Args, Elements\
     , Edges, EdgesToRDKit, Path
-
 from torch_geometric.datasets.molecule_net import x_map, e_map
-import numpy as np
-import sys
-import os
-import torch
-import torch_geometric
+from config.explainer import Args
 
 sys.path.append(os.path.join(RDConfig.RDContribDir, "SA_Score"))
+
 
 def mol_from_smiles(smiles):
     return Chem.MolFromSmiles(smiles)
 
 def mol_to_smiles(mol):
+    args = Args()
+
+    if isinstance(mol, Data) and args.dataset.lower() == 'tox21':
+        mol = pyg_to_mol_tox21(mol)
+
+    elif isinstance(mol, Data) and args.dataset.lower() == 'esol':
+        mol = pyg_to_mol_esol(mol)
+
     return Chem.MolToSmiles(mol)
-
-def morgan_fingerprint(smiles, fp_length, fp_radius):
-    if smiles is None:
-        return None
-
-    molecule = Chem.MolFromSmiles(smiles)
-
-    if molecule is None:
-        return None
-
-    return AllChem.GetMorganFingerprintAsBitVect(
-        molecule,
-        fp_radius,
-        fp_length
-    )
-
-def numpy_morgan_fingerprint(smiles, fp_length, fp_radius):
-    fingerprint = morgan_fingerprint(smiles, fp_length, fp_radius)
-
-    if fingerprint is None:
-        return np.zeros((fp_length,))
-
-    arr = np.zeros((1,))
-
-    DataStructs.ConvertToNumpyArray(fingerprint, arr)
-
-    return arr
-
 
 def atom_valences(atom_types):
     periodic_table = Chem.GetPeriodicTable()
@@ -55,72 +37,6 @@ def atom_valences(atom_types):
         max(list(periodic_table.GetValenceList(atom_type)))
         for atom_type in atom_types
     ]
-
-
-def pyg_to_mol(pyg_mol):
-    mol = Chem.RWMol()
-
-    X = pyg_mol.x.numpy().tolist()
-    X = [
-        Chem.Atom(Elements(x.index(1)).name)
-        for x in X
-    ]
-
-    E = pyg_mol.edge_index.t()
-
-    for x in X:
-        mol.AddAtom(x)
-
-    for (u, v), attr in zip(E, pyg_mol.edge_attr):
-        u = u.item()
-        v = v.item()
-        attr = attr.numpy().tolist()
-        attr = EdgesToRDKit(attr.index(1))
-
-        if mol.GetBondBetweenAtoms(u, v):
-            continue
-
-        mol.AddBond(u, v, attr)
-
-    return mol
-
-def esol_pyg_to_mol(pyg_mol):
-    mol = Chem.RWMol()
-
-    X = pyg_mol.x.numpy().tolist()
-    X = [
-        Chem.Atom(int(x[0]))
-        for x in X
-    ]
-
-    E = pyg_mol.edge_index.t()
-
-    for x in X:
-        mol.AddAtom(x)
-
-    for (u, v), attr in zip(E, pyg_mol.edge_attr):
-        u = u.item()
-        v = v.item()
-        attr = attr.numpy().tolist()
-        attr = attr[0]
-
-        if mol.GetBondBetweenAtoms(u, v):
-            continue
-
-
-        mol.AddBond(u, v, Chem.BondType.values[attr])
-
-    return mol
-
-def pyg_to_smiles(pyg_mol):
-    return Chem.MolToSmiles(
-        pyg_to_mol(pyg_mol)
-    )
-
-def esol_pyg_to_smiles(pyg_mol):
-    return Chem.MolToSmiles(
-        esol_pyg_to_mol(pyg_mol)
-    )
 
 def check_molecule_validity(mol, transform):
     if type(mol) == torch_geometric.data.Data:
@@ -242,7 +158,57 @@ def get_dgn(dataset, experiment):
         return m
 
 
-def molecule_encoding(model, smile):
-    mol = mol_to_pyg(Chem.MolFromSmiles(smile))
-    _, encoding = model(mol.x, mol.edge_index, mol.batch)
-    return encoding.squeeze()
+def pyg_to_mol_tox21(pyg_mol):
+    mol = Chem.RWMol()
+
+    X = pyg_mol.x.numpy().tolist()
+    X = [
+        Chem.Atom(Elements(x.index(1)).name)
+        for x in X
+    ]
+
+    E = pyg_mol.edge_index.t()
+
+    for x in X:
+        mol.AddAtom(x)
+
+    for (u, v), attr in zip(E, pyg_mol.edge_attr):
+        u = u.item()
+        v = v.item()
+        attr = attr.numpy().tolist()
+        attr = EdgesToRDKit(attr.index(1))
+
+        if mol.GetBondBetweenAtoms(u, v):
+            continue
+
+        mol.AddBond(u, v, attr)
+
+    return mol
+
+def pyg_to_mol_esol(pyg_mol):
+    mol = Chem.RWMol()
+
+    X = pyg_mol.x.numpy().tolist()
+    X = [
+        Chem.Atom(int(x[0]))
+        for x in X
+    ]
+
+    E = pyg_mol.edge_index.t()
+
+    for x in X:
+        mol.AddAtom(x)
+
+    for (u, v), attr in zip(E, pyg_mol.edge_attr):
+        u = u.item()
+        v = v.item()
+        attr = attr.numpy().tolist()
+        attr = attr[0]
+
+        if mol.GetBondBetweenAtoms(u, v):
+            continue
+
+
+        mol.AddBond(u, v, Chem.BondType.values[attr])
+
+    return mol

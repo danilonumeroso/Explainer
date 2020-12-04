@@ -12,7 +12,7 @@ from models.explainer import CF_Tox21, NCF_Tox21, Agent, CF_Esol, NCF_Esol
 from config.explainer import Args, Path, Elements
 from torch.utils.tensorboard import SummaryWriter
 from rdkit import Chem
-from utils import SortedQueue, morgan_bit_fingerprint, get_split, get_dgn
+from utils import SortedQueue, morgan_bit_fingerprint, get_split, get_dgn, mol_to_smiles
 from torch.nn import functional as F
 
 def tox21(general_params):
@@ -33,7 +33,7 @@ def tox21(general_params):
 
     assert pred_class == original_molecule.y.item()
 
-    smiles = utils.pyg_to_smiles(original_molecule)
+    smiles = mol_to_smiles(original_molecule)
 
     print(f'Molecule: {smiles}')
 

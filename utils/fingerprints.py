@@ -6,7 +6,7 @@ from utils.molecules import mol_from_smiles, mol_to_smiles
 
 class Fingerprint:
     def __init__(self, fingerprint, fp_length):
-        self.fingerprint = fingerprint
+        self.fp = fingerprint
         self.fp_len = fp_length
 
     def is_valid(self):
@@ -14,7 +14,7 @@ class Fingerprint:
 
     def numpy(self):
         np_ = np.zeros((1,))
-        ConvertToNumpyArray(self.fingerprint, np_)
+        ConvertToNumpyArray(self.fp, np_)
         return np_
 
     def tensor(self):
