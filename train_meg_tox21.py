@@ -8,22 +8,22 @@ import utils
 
 from torch_geometric.datasets import TUDataset
 from torch_geometric.data import DataLoader
-from models.explainer import CF_Tox21, NCF_Tox21, Agent
-from config.explainer import Args, Path, Log, Elements
+from models.explainer import CF_Tox21, NCF_Tox21, Agent, CF_Esol, NCF_Esol
+from config.explainer import Args, Path, Elements
 from torch.utils.tensorboard import SummaryWriter
 from rdkit import Chem
-from utils import SortedQueue, morgan_bit_fingerprint
+from utils import SortedQueue, morgan_bit_fingerprint, get_split, get_dgn
 from torch.nn import functional as F
 
-def main():
+def tox21(general_params):
     Hyperparams = Args()
     BasePath = './runs/tox21/' + Hyperparams.experiment
     writer = SummaryWriter(BasePath + '/plots')
 
-    dataset = utils.get_split('tox21', 'test', Hyperparams.experiment)
+    dataset = get_split('tox21', 'test', Hyperparams.experiment)
 
     original_molecule = dataset[Hyperparams.sample]
-    model_to_explain = utils.get_dgn("Tox21", Hyperparams.experiment)
+    model_to_explain = get_dgn("tox21", Hyperparams.experiment)
 
     out, original_encoding = model_to_explain(original_molecule.x,
                                               original_molecule.edge_index)
@@ -34,6 +34,7 @@ def main():
     assert pred_class == original_molecule.y.item()
 
     smiles = utils.pyg_to_smiles(original_molecule)
+
     print(f'Molecule: {smiles}')
 
     atoms_ = [
@@ -45,14 +46,9 @@ def main():
 
     params = {
         # General-purpose params
+        **general_params,
         'init_mol': smiles,
-        'discount_factor': Hyperparams.discount,
         'atom_types': set(atoms_),
-        'allow_removal': True,
-        'allow_no_modification': False,
-        'allow_bonds_between_rings': True,
-        'allowed_ring_sizes': set(Hyperparams.allowed_ring_sizes),
-        'max_steps': Hyperparams.max_steps_per_episode,
         # Task-specific params
         'original_molecule': original_molecule,
         'model_to_explain': model_to_explain,
@@ -61,23 +57,23 @@ def main():
     }
 
     N = 20
-    cf_queue = SortedQueue(N, sort_predicate=lambda mol: mol['score'])
+    cf_queue = SortedQueue(N, sort_predicate=lambda mol: mol['reward'])
     cf_env = CF_Tox21(**params)
     cf_env.initialize()
 
-    ncf_queue = SortedQueue(N, sort_predicate=lambda mol: mol['score'])
+    ncf_queue = SortedQueue(N, sort_predicate=lambda mol: mol['reward'])
     ncf_env = NCF_Tox21(**params)
     ncf_env.initialize()
 
-    meg_train(writer, cf_env, cf_queue, marker="cf")
-    meg_train(writer, ncf_env, ncf_queue, marker="ncf")
+    meg_train(writer, cf_env, cf_queue, marker="cf", tb_name="tox21")
+    meg_train(writer, ncf_env, ncf_queue, marker="ncf", tb_name="tox_21")
 
     overall_queue = []
     overall_queue.append({
         'marker': 'og',
         'smiles': smiles,
         'pred_class': original_molecule.y.item(),
-        'certainty': logits[original_molecule.y.item()].item()
+        'prediction': logits[original_molecule.y.item()].item()
     })
     overall_queue.extend(cf_queue.data_)
     overall_queue.extend(ncf_queue.data_)
@@ -85,15 +81,69 @@ def main():
     with open(BasePath + f"/counterfacts/{Hyperparams.sample}.json", "w") as outf:
         json.dump(overall_queue, outf, indent=2)
 
+def esol(general_params):
+    Hyperparams = Args()
+    BasePath = './runs/esol/' + Hyperparams.experiment
+    writer = SummaryWriter(BasePath + '/plots')
+    episodes = 0
 
-def meg_train(writer, environment, queue, marker):
+    dataset = get_split('esol', 'test', Hyperparams.experiment)
+    original_molecule = dataset[Hyperparams.sample]
+    original_molecule.x = original_molecule.x.float()
+    model_to_explain = get_dgn("esol", Hyperparams.experiment)
+
+    og_prediction, _ = model_to_explain(original_molecule.x, original_molecule.edge_index)
+    print(f'Molecule: {original_molecule.smiles}')
+
+    atoms_ = np.unique(
+        [x.GetSymbol() for x in Chem.MolFromSmiles(original_molecule.smiles).GetAtoms()]
+    )
+
+    params = {
+        # General-purpose params
+        **general_params,
+        'init_mol': original_molecule.smiles,
+        'atom_types': set(atoms_),
+        # Task-specific params
+        'model_to_explain': model_to_explain,
+        'original_molecule': original_molecule,
+        'weight_sim': 0.2,
+        'similarity_measure': 'combined'
+    }
+
+    N = 20
+    cf_queue = SortedQueue(N, sort_predicate=lambda mol: mol['reward'])
+    cf_env = CF_Esol(**params)
+    cf_env.initialize()
+
+    ncf_queue = SortedQueue(N, sort_predicate=lambda mol: mol['reward'])
+    ncf_env = NCF_Esol(**params)
+    ncf_env.initialize()
+
+    meg_train(writer, cf_env, cf_queue, marker="cf", tb_name="esol")
+    meg_train(writer, ncf_env, ncf_queue, marker="ncf", tb_name="esol")
+
+    overall_queue = []
+    overall_queue.append({
+        'marker': 'og',
+        'smiles': original_molecule.smiles,
+        'pred_class': original_molecule.y.item(),
+        'prediction': og_prediction.item()
+    })
+    overall_queue.extend(cf_queue.data_)
+    overall_queue.extend(ncf_queue.data_)
+
+    with open(BasePath + f"/counterfacts/{Hyperparams.sample}.json", "w") as outf:
+        json.dump(overall_queue, outf, indent=2)
+
+def meg_train(writer, environment, queue, marker, tb_name):
     Hyperparams = Args()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     agent = Agent(Hyperparams.fingerprint_length + 1, 1, device)
 
     eps = 1.0
     batch_losses = []
-    episodes = 0
+    episode = 0
 
     for it in range(Hyperparams.epochs):
 
@@ -128,12 +178,11 @@ def meg_train(writer, environment, queue, marker):
             steps_left
         )
 
-        _, env_out, done = result
-        reward, pred, sim, pred_class = env_out
+        _, out, done = result
 
-        writer.add_scalar('Tox21/Reward', reward, it)
-        writer.add_scalar('Tox21/Prediction', pred, it)
-        writer.add_scalar('Tox21/Similarity', sim, it)
+        writer.add_scalar(f'{tb_name}/reward', out['reward'], it)
+        writer.add_scalar(f'{tb_name}/prediction', out['prediction'], it)
+        writer.add_scalar(f'{tb_name}/similarity', out['similarity'], it)
 
         steps_left = Hyperparams.max_steps_per_episode - environment.num_steps_taken
 
@@ -153,7 +202,7 @@ def meg_train(writer, environment, queue, marker):
 
         agent.replay_buffer.push(
             torch.as_tensor(action_fingerprint).float(),
-            reward,
+            out['reward'],
             torch.as_tensor(action_fingerprints).float(),
             float(result.terminated)
         )
@@ -169,19 +218,15 @@ def meg_train(writer, environment, queue, marker):
                 batch_losses.append(loss)
 
         if done:
-            final_reward = reward
-            episodes += 1
+            episode += 1
 
-            print(f'Episode {episodes}::Final Molecule Reward: {final_reward:.6f} (pred: {pred:.6f}, sim: {sim:.6f})')
-            print(f'Episode {episodes}::Final Molecule: {action}')
+            print(f'Episode {episode}::Final Molecule Reward: {out["reward"]:.6f} (pred: {out["prediction"]:.6f}, sim: {out["similarity"]:.6f})')
+            print(f'Episode {episode}::Final Molecule: {action}')
 
             queue.insert({
                 'marker': marker,
                 'smiles': action,
-                'pred_class': pred_class,
-                'score': final_reward,
-                'certainty': pred,
-                'similarity': sim
+                **out
             })
 
             eps *= 0.9985
@@ -190,4 +235,14 @@ def meg_train(writer, environment, queue, marker):
 
 
 if __name__ == '__main__':
-    main()
+    Hyperparams = Args()
+    params = {
+        # General-purpose params
+        'discount_factor': Hyperparams.discount,
+        'allow_removal': True,
+        'allow_no_modification': False,
+        'allow_bonds_between_rings': True,
+        'allowed_ring_sizes': set(Hyperparams.allowed_ring_sizes),
+        'max_steps': Hyperparams.max_steps_per_episode,
+    }
+    tox21(params) if Hyperparams.dataset.lower() == 'tox21' else esol(params)

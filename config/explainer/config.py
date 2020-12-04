@@ -7,6 +7,7 @@ _Hyperparams = namedtuple(
     [
         'sample',
         'experiment',
+        'dataset',
         'seed',
         'optimizer',
         'polyak',
@@ -49,6 +50,7 @@ def Args():
 
     parser.add_argument('--sample', type=int, default=0)
     parser.add_argument('--experiment', default='test')
+    parser.add_argument('--dataset', default='tox21')
     parser.add_argument('--seed', type=int, default=0)
     parser.add_argument('--lr', type=float, default=1e-4, help="Learning Rate")
     parser.add_argument('--optimizer', choices=['Adam', 'SGD', 'Adamax'],
@@ -70,6 +72,7 @@ def Args():
         sample=args.sample,
         experiment=args.experiment,
         seed=args.seed,
+        dataset=args.dataset,
         optimizer=args.optimizer,
         polyak=args.polyak,
         max_steps_per_episode=args.max_steps_per_episode,
@@ -86,9 +89,6 @@ def Args():
         update_interval=1,
         num_counterfactuals=args.num_counterfactuals
     )
-
-
-Log = print
 
 _BasePath = path.normpath(path.join(
     path.dirname(path.realpath(__file__)),

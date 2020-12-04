@@ -45,14 +45,6 @@ def main():
     S = [utils.cosine_similarity(encoding, original_encoding) for encoding in S]
 
     environment = CounterfactualESOL(
-        init_mol=original_molecule.smiles,
-        discount_factor=Hyperparams.discount,
-        atom_types=set(atoms_),
-        allow_removal=True,
-        allow_no_modification=False,
-        allow_bonds_between_rings=True,
-        allowed_ring_sizes=set(Hyperparams.allowed_ring_sizes),
-        max_steps=Hyperparams.max_steps_per_episode,
         model_to_explain=model_to_explain,
         original_molecule=original_molecule,
         target=original_molecule.y,

@@ -12,7 +12,7 @@ class SortedQueue:
 
     def insert(self, data):
         assert 'smiles' in data
-        assert 'score' in data
+        assert 'reward' in data
 
         if self.contains(data['smiles']):
             return

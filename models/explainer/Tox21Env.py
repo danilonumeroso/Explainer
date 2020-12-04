@@ -76,8 +76,12 @@ class CF_Tox21(Molecule):
 
         reward = pred_score * (1 - self.weight_sim) + sim_score * self.weight_sim
 
-        return reward * self.discount_factor \
-            ** (self.max_steps - self.num_steps_taken), pred_score, sim_score, pred_class
+        return {
+            'reward': reward * self.discount_factor, # ** (self.max_steps - self.num_steps_taken)
+            'prediction': pred_score,
+            'similarity': sim_score,
+            'pred_class': pred_class
+        }
 
 
 class NCF_Tox21(CF_Tox21):

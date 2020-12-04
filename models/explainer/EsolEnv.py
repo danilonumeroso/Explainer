@@ -8,21 +8,19 @@ from rdkit import Chem, DataStructs
 from models.explainer.Environment import Molecule
 from utils import tanimoto_similarity, rescaled_cosine_similarity, cosine_similarity
 
-class CounterfactualESOL(Molecule):
+class CF_Esol(Molecule):
 
     def __init__(
             self,
             model_to_explain,
             original_molecule,
-            original_prediction,
             discount_factor,
-            target,
             similarity_set=None,
             weight_sim=0.5,
             similarity_measure="tanimoto",
             **kwargs
     ):
-        super(CounterfactualESOL, self).__init__(**kwargs)
+        super(CF_Esol, self).__init__(**kwargs)
 
         Hyperparams = Args()
 
@@ -31,10 +29,13 @@ class CounterfactualESOL(Molecule):
         self.discount_factor = discount_factor
         self.model_to_explain = model_to_explain
         self.weight_sim = weight_sim
-        self.target = target
-        self.orig_pred = original_prediction
+        self.target = original_molecule.y
+        self.orig_pred, _ = model_to_explain(original_molecule.x, original_molecule.edge_index)
         self.distance  = lambda x,y: F.l1_loss(x,y).detach()
         self.base_loss = self.distance(self.orig_pred, self.target).item()
+        self.gain = lambda p: torch.sign(
+            self.distance(p, self.orig_pred)
+        ).item()
 
         if similarity_measure == "tanimoto":
             self.similarity = lambda x, y: tanimoto_similarity(x, y)
@@ -81,11 +82,25 @@ class CounterfactualESOL(Molecule):
 
         loss = self.distance(pred, self.orig_pred).item()
 
-        gain = torch.sign(
-            self.distance(pred, self.target) - self.base_loss
-        ).item()
+        gain = self.gain(pred)
 
         reward = gain * loss * (1 - self.weight_sim) + sim * self.weight_sim
 
-        return reward * self.discount_factor \
-            ** (self.max_steps - self.num_steps_taken), loss, gain, sim
+        return {
+            'reward': reward * self.discount_factor ** (self.max_steps - self.num_steps_taken),
+            'prediction': loss,
+            'gain': gain,
+            'similarity': sim,
+            'pred_class': pred.squeeze().item()
+        }
+
+
+class NCF_Esol(CF_Esol):
+
+    def __init__(
+            self,
+            **kwargs
+    ):
+        super(NCF_Esol, self).__init__(**kwargs)
+        self.distance  = lambda x,y: -F.l1_loss(x,y).detach()
+        self.gain = lambda p: 1
