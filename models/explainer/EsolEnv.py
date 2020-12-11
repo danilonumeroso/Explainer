@@ -66,10 +66,14 @@ class CF_Esol(Molecule):
 
         return {
             'reward': reward * self.discount_factor ** (self.max_steps - self.num_steps_taken),
-            'prediction': loss,
-            'gain': gain,
-            'similarity': sim,
-            'pred_class': pred.squeeze().item()
+            'reward_pred': loss,
+            'reward_gain': gain,
+            'reward_sim': sim,
+            'prediction': {
+                'type': 'regression',
+                'output': pred.squeeze().detach().numpy().tolist(),
+                'for_explanation': pred.squeeze().detach().numpy().tolist()
+            }
         }
 
 

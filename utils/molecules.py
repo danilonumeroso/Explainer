@@ -44,7 +44,11 @@ def check_molecule_validity(mol, transform):
 
     return Chem.SanitizeMol(mol, catchErrors=True) == Chem.SANITIZE_NONE
 
-def mol_to_pyg(molecule):
+def mol_to_tox21_pyg(molecule):
+
+    if isinstance(molecule, str):
+        molecule = mol_from_smiles(molecule)
+
     X = torch.nn.functional.one_hot(
         torch.tensor([
             Elements[atom.GetSymbol()].value
@@ -78,6 +82,9 @@ def mol_to_pyg(molecule):
     return pyg_mol
 
 def mol_to_esol_pyg(mol):
+    if isinstance(molecule, str):
+        molecule = mol_from_smiles(molecule)
+
     xs = []
     for atom in mol.GetAtoms():
         x = []

@@ -58,9 +58,14 @@ class CF_Tox21(Molecule):
 
         return {
             'reward': reward * self.discount_factor, # ** (self.max_steps - self.num_steps_taken)
-            'prediction': pred_score,
-            'similarity': sim_score,
-            'pred_class': pred_class
+            'reward_pred': pred_score,
+            'reward_sim': sim_score,
+            'prediction': {
+                'type': 'bin_classification',
+                'output': out.numpy().tolist(),
+                'for_explanation': pred_score,
+                'class': pred_class
+            }
         }
 
 

@@ -14,7 +14,11 @@ from math import sqrt
 EPS = 1e-15
 
 
-class GNNExplainerAdapter(GNNExplainer):
+class GNNExplainer_(GNNExplainer):
+
+    def __init__(self, prediction_loss, **kwargs):
+        super(GNNExplainer_, self).__init__(**kwargs)
+        self.prediction_loss = prediction_loss
 
     def __set_masks__(self, x, edge_index, init="normal"):
         (N, F), E = x.size(), edge_index.size(1)
@@ -36,25 +40,24 @@ class GNNExplainerAdapter(GNNExplainer):
             if isinstance(module, MessagePassing):
                 module.__edge_mask__ = edge_mask.repeat(2)
 
-    def __loss__(self, log_logits, pred_label):
-        loss = -log_logits[0][pred_label]
+    def __loss__(self, p1, p2):
 
+        loss = self.prediction_loss(p1, p2)
         m = self.edge_mask.sigmoid()
-        # loss = loss + self.coeffs['edge_size'] * m.sum()
-        norm =  torch.norm(self.edge_mask)
+
         loss = loss + self.coeffs['edge_size'] * m.sum()
         ent = -m * torch.log(m + EPS) - (1 - m) * torch.log(1 - m + EPS)
         loss = loss + self.coeffs['edge_ent'] * ent.mean()
 
-        # m = self.node_feat_mask.sigmoid()
-        # loss = loss + self.coeffs['node_feat_size'] * m.sum()
-        # ent = -m * torch.log(m + EPS) - (1 - m) * torch.log(1 - m + EPS)
-        # loss = loss + self.coeffs['node_feat_ent'] * ent.mean()
+        if self.node_feat_mask is not None:
+            m = self.node_feat_mask.sigmoid()
+            loss = loss + self.coeffs['node_feat_size'] * m.mean()
+            ent = -m * torch.log(m + EPS) - (1 - m) * torch.log(1 - m + EPS)
+            loss = loss + self.coeffs['node_feat_ent'] * ent.mean()
 
         return loss
 
-    def explain_graph(self, x, edge_index, **kwargs):
-
+    def explain_undirected_graph(self, x, edge_index, **kwargs):
         print(self.coeffs)
 
         self.model.eval()
@@ -65,17 +68,19 @@ class GNNExplainerAdapter(GNNExplainer):
         ).long()
 
         # Get the initial prediction.
-        with torch.no_grad():
-            log_logits, _ = self.model(x=x, edge_index=edge_index, batch=batch)
-            pred_label = log_logits.argmax(dim=-1)
+        prediction = kwargs['prediction']
+        node_feat_mask_enable = False if 'feat_enable' not in kwargs else kwargs['feat_enable']
 
-        print(log_logits)
         self.__set_masks__(x, edge_index)
         self.to(x.device)
 
-        # print(log_logits)
-        optimizer = torch.optim.Adam([self.edge_mask],
-                                     lr=self.lr)
+        parameters = [self.edge_mask]
+
+        if node_feat_mask_enable:
+            parameters.append(self.node_feat_mask)
+            self.node_feat_mask = None
+
+        optimizer = torch.optim.Adam(parameters, lr=self.lr)
 
         if self.log:  # pragma: no cover
             pbar = tqdm(total=self.epochs)
@@ -83,9 +88,11 @@ class GNNExplainerAdapter(GNNExplainer):
 
         for epoch in range(1, self.epochs + 1):
             optimizer.zero_grad()
-            # h = x * self.node_feat_mask.sigmoid()
-            log_logits, _ = self.model(x=x, edge_index=edge_index, batch=batch)
-            loss = self.__loss__(log_logits, pred_label)
+            if self.node_feat_mask is not None:
+                h = x * self.node_feat_mask.sigmoid()
+
+            explaining_prediction, _ = self.model(x=x, edge_index=edge_index, batch=batch)
+            loss = self.__loss__(explaining_prediction, prediction)
             loss.backward()
             optimizer.step()
             self.__modify_edge_mask__(self.edge_mask)
@@ -97,12 +104,13 @@ class GNNExplainerAdapter(GNNExplainer):
         if self.log:  # pragma: no cover
             pbar.close()
 
-        node_feat_mask = self.node_feat_mask.detach().sigmoid()
+        if self.node_feat_mask is not None:
+            node_feat_mask = self.node_feat_mask.detach().sigmoid()
+
         edge_mask = self.edge_mask.detach().sigmoid()
 
         self.__clear_masks__()
 
-        print(log_logits)
         return node_feat_mask, edge_mask.repeat(2)
 
     def visualize_subgraph(self, edge_index, edge_mask, num_nodes,

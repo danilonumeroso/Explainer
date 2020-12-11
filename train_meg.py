@@ -72,8 +72,12 @@ def tox21(general_params):
     overall_queue.append({
         'marker': 'og',
         'smiles': smiles,
-        'pred_class': original_molecule.y.item(),
-        'prediction': logits[original_molecule.y.item()].item()
+        'prediction': {
+            'type': 'bin_classification',
+            'output': logits.numpy().tolist(),
+            'for_explanation': original_molecule.y.item(),
+            'class': original_molecule.y.item()
+        }
     })
     overall_queue.extend(cf_queue.data_)
     overall_queue.extend(ncf_queue.data_)
@@ -127,8 +131,11 @@ def esol(general_params):
     overall_queue.append({
         'marker': 'og',
         'smiles': original_molecule.smiles,
-        'pred_class': original_molecule.y.item(),
-        'prediction': og_prediction.item()
+        'prediction': {
+            'type': 'bin_classification',
+            'output': og_prediction.squeeze().detach().numpy().tolist(),
+            'for_explanation': og_prediction.squeeze().detach().numpy().tolist()
+        }
     })
     overall_queue.extend(cf_queue.data_)
     overall_queue.extend(ncf_queue.data_)
@@ -181,8 +188,8 @@ def meg_train(writer, environment, queue, marker, tb_name):
         _, out, done = result
 
         writer.add_scalar(f'{tb_name}/reward', out['reward'], it)
-        writer.add_scalar(f'{tb_name}/prediction', out['prediction'], it)
-        writer.add_scalar(f'{tb_name}/similarity', out['similarity'], it)
+        writer.add_scalar(f'{tb_name}/prediction', out['reward_pred'], it)
+        writer.add_scalar(f'{tb_name}/similarity', out['reward_sim'], it)
 
         steps_left = Hyperparams.max_steps_per_episode - environment.num_steps_taken
 
@@ -220,7 +227,7 @@ def meg_train(writer, environment, queue, marker, tb_name):
         if done:
             episode += 1
 
-            print(f'Episode {episode}::Final Molecule Reward: {out["reward"]:.6f} (pred: {out["prediction"]:.6f}, sim: {out["similarity"]:.6f})')
+            print(f'Episode {episode}::Final Molecule Reward: {out["reward"]:.6f} (pred: {out["reward_pred"]:.6f}, sim: {out["reward_sim"]:.6f})')
             print(f'Episode {episode}::Final Molecule: {action}')
 
             queue.insert({
