@@ -5,7 +5,7 @@ from rdkit import Chem, DataStructs
 from models.explainer.Environment import Molecule
 from config.explainer import Args
 from torch.nn import functional as F
-from utils import get_similarity, mol_to_smiles
+from utils import get_similarity, mol_to_smiles, mol_from_smiles, mol_to_tox21_pyg
 
 
 class CF_Tox21(Molecule):
@@ -40,12 +40,11 @@ class CF_Tox21(Molecule):
                                                     self.fp_radius)
 
     def _reward(self):
-        molecule = Chem.MolFromSmiles(self._state)
+        molecule = mol_from_smiles(self._state)
+        molecule = mol_to_tox21_pyg(molecule)
 
-        if molecule is None or len(molecule.GetBonds()) == 0:
-            return 0.0, 0.0, 0.0
-
-        molecule = utils.mol_to_pyg(molecule)
+        # if molecule is None or len(molecule.GetBonds()) == 0:
+        #     return 0.0, 0.0, 0.0
 
         out, _ = self.model_to_explain(molecule.x, molecule.edge_index)
         out = F.softmax(out, dim=-1).squeeze().detach()

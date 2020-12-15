@@ -3,17 +3,31 @@
 echo $BASH_VERSION
 NAME=train_dgn_$1.py
 OPT=Adam
+VAL_ACCURACY=0
+BEST=0
+
+touch runs/$1/best
 
 for LR in 0.005 0.001 0.0005 0.0001
 do
-    for BS in {20..140..40}
+    for BS in 20 60 120
     do
-        for HS in {32..256..32}
+        for HS in 32 64 128 256
         do
             SEED=$RANDOM
             EXPERIMENT="${OPT}_LR_${LR}_BS_${BS}_HS_${HS}"
             echo "python ${NAME} --lr ${LR} --hidden_size ${HS} --batch_size ${BS} --seed ${SEED}"
             python $NAME --lr $LR --hidden_size $HS --batch_size $BS --experiment_name $EXPERIMENT --seed $SEED
+
+            VAL_ACCURACY=`cat runs/$1/$EXPERIMENT/best_result.json | python3 -c "import sys, json; print(json.load(sys.stdin)['val_acc'])"`
+
+            echo $VAL_ACCURACY
+            if echo $VAL_ACCURACY $BEST | awk '{exit !( $1 > $2)}'; then
+                echo "NEW BEST"
+                BEST=$VAL_ACCURACY
+                echo $EXPERIMENT > runs/$1/best
+            fi
+
             echo "--------------------DONE------------------------"
         done
     done

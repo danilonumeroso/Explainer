@@ -236,7 +236,7 @@ def meg_train(writer, environment, queue, marker, tb_name):
                 **out
             })
 
-            eps *= 0.9985
+            eps *= 0.9995
             batch_losses = []
             environment.initialize()
 

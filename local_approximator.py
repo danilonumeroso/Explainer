@@ -2,28 +2,27 @@ import json
 import torch
 import numpy as np
 
-from utils import morgan_bit_fingerprint
+from utils import morgan_bit_fingerprint, morgan_count_fingerprint
 from torch.nn import Sequential, functional as F, Linear
 
 sample = "runs/tox21/test/counterfacts/0.json"
-num_input = 4096
+num_input = 20
 num_output = 2
 
 data = json.load(open(sample, "r"))
-morgan_bit_fingerprint(data[0]['smiles'], num_input, 2)
 
 X = torch.stack([
-    morgan_bit_fingerprint(d['smiles'], num_input, 2).tensor()
+    morgan_count_fingerprint(d['smiles'], num_input, 2).tensor()
     for d in data
 ]).float()
 
 Y = torch.stack([
-    torch.tensor(d['pred_class'])
+    torch.tensor(d['prediction']['class'])
     for d in data
 ])
 
-print(X)
-print(Y)
+print("X = ", X.numpy())
+print("Y = ", Y.numpy())
 
 interpretable_model = Sequential(
     Linear(num_input, num_output)
@@ -31,7 +30,7 @@ interpretable_model = Sequential(
 
 optimizer = torch.optim.SGD(interpretable_model.parameters(), lr=1e-2)
 
-for epoch in range(200):
+for epoch in range(200 + 1):
     optimizer.zero_grad()
 
     out = interpretable_model(X)
@@ -41,4 +40,5 @@ for epoch in range(200):
     loss.backward()
     optimizer.step()
 
-    print(loss)
+    if epoch % 20 == 0:
+        print(f"Loss: {loss.item():.4f}")

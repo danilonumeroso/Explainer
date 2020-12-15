@@ -27,3 +27,11 @@ def morgan_bit_fingerprint(molecule, fp_len, fp_rad):
 
     fp = AllChem.GetMorganFingerprintAsBitVect(molecule, fp_rad, fp_len)
     return Fingerprint(fp, fp_len)
+
+
+def morgan_count_fingerprint(molecule, fp_len, fp_rad):
+    if isinstance(molecule, str):
+        molecule = mol_from_smiles(molecule)
+
+    fp = AllChem.GetHashedMorganFingerprint(molecule, fp_rad, fp_len)
+    return Fingerprint(fp, fp_len)
