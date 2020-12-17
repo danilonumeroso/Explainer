@@ -1,10 +1,19 @@
 import torch
+import random
+import glob
+import os
+import os.path as osp
+
 from config.encoder import Args, Path
 from torch_geometric.data import DataLoader, InMemoryDataset
 from torch.nn import functional as F
 from utils.molecules import check_molecule_validity, pyg_to_mol_tox21, pyg_to_mol_esol
 from torch_geometric.datasets import TUDataset, MoleculeNet
-import random
+from torch_geometric.io.tu import split, read_file, cat
+from torch_geometric.utils import remove_self_loops
+from torch_sparse import coalesce
+from torch_geometric.data import Data
+
 
 def pad(sample, n_pad):
     sample.x = F.pad(sample.x, (0,n_pad), "constant", 0)
@@ -23,7 +32,6 @@ def get_split(dataset_name, split, experiment):
 
     elif dataset_name.lower() == 'esol':
 
-        MoleculeNet.url = 'file://./data/esol-data.zip'
         ds = MoleculeNet(
             'data/esol',
             name='ESOL'
@@ -99,7 +107,6 @@ def _preprocess_tox21(args):
 
 
 def _preprocess_esol(args):
-    MoleculeNet.url = 'file://./data/esol-data.zip'
 
     dataset = MoleculeNet(
         'data/esol',
@@ -109,8 +116,6 @@ def _preprocess_esol(args):
     data_list = (
         [dataset.get(idx) for idx in range(len(dataset))]
     )
-
-    # dataset_list = list(filter(lambda mol: check_molecule_validity(mol, esol_pyg_to_mol), dataset_list))
 
     random.shuffle(data_list)
 
@@ -144,20 +149,23 @@ def _preprocess_esol(args):
         train.num_classes,
     )
 
-def _preprocess_alchemy(args):
-    from torch_geometric.datasets import TUDataset
+def _preprocess_cycliq(args):
+    return _cycliq(args, "CYCLIQ")
 
-    dataset = TUDataset(
-        'data/alchemy',
-        name='alchemy_full'
+def _preprocess_cycliq_multi(args):
+    return _cycliq(args, "CYCLIQ-MULTI")
+
+def _cycliq(args, name):
+    from utils.cycliq import CYCLIQ
+
+    dataset = CYCLIQ(
+        'data/cycliq',
+        name=name
     )
-
 
     data_list = (
         [dataset.get(idx) for idx in range(len(dataset))]
     )
-
-    # dataset_list = list(filter(check_molecule_validity, dataset_list))
 
     random.shuffle(data_list)
 
@@ -170,20 +178,19 @@ def _preprocess_alchemy(args):
     train = dataset
     val = dataset.copy()
     test = dataset.copy()
-
     train.data, train.slices = train.collate(train_data)
     val.data, val.slices = train.collate(val_data)
     test.data, test.slices = train.collate(test_data)
 
-    torch.save((train.data, train.slices), f'runs/alchemy/{args.experiment_name}/splits/train.pth')
-    torch.save((val.data, val.slices), f'runs/alchemy/{args.experiment_name}/splits/val.pth')
-    torch.save((test.data, test.slices), f'runs/alchemy/{args.experiment_name}/splits/test.pth')
+    torch.save((train.data, train.slices), f'runs/{name.lower()}/{args.experiment_name}/splits/train.pth')
+    torch.save((val.data, val.slices), f'runs/{name.lower()}/{args.experiment_name}/splits/val.pth')
+    torch.save((test.data, test.slices), f'runs/{name.lower()}/{args.experiment_name}/splits/test.pth')
 
 
     return (
         DataLoader(train, batch_size=args.batch_size),
         DataLoader(val,   batch_size=args.batch_size),
-        DataLoader(test,   batch_size=args.batch_size),
+        DataLoader(test,  batch_size=args.batch_size),
         train,
         val,
         test,
@@ -194,5 +201,31 @@ def _preprocess_alchemy(args):
 _PREPROCESS = {
     'tox21': _preprocess_tox21,
     'esol': _preprocess_esol,
-    'alchemy': _preprocess_alchemy,
+    'cycliq': _preprocess_cycliq,
+    'cycliq-multi': _preprocess_cycliq_multi,
 }
+
+
+def read_cycliq_data(folder, prefix):
+    files = glob.glob(osp.join(folder, '{}_*.txt'.format(prefix)))
+    names = [f.split(os.sep)[-1][len(prefix) + 1:-4] for f in files]
+
+    edge_index = read_file(folder, prefix, 'A', torch.long).t() - 1
+    batch = read_file(folder, prefix, 'graph_indicator', torch.long) - 1
+
+    x = torch.ones((edge_index.max().item() + 1, 10))
+
+    edge_attr = torch.ones((edge_index.size(1), 5))
+
+    y = read_file(folder, prefix, 'graph_labels', torch.long)
+    _, y = y.unique(sorted=True, return_inverse=True)
+
+    num_nodes = edge_index.max().item() + 1 if x is None else x.size(0)
+    edge_index, edge_attr = remove_self_loops(edge_index, edge_attr)
+    edge_index, edge_attr = coalesce(edge_index, edge_attr, num_nodes,
+                                     num_nodes)
+
+    data = Data(x=x, edge_index=edge_index, edge_attr=edge_attr, y=y)
+    data, slices = split(data, batch)
+
+    return data, slices

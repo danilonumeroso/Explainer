@@ -15,7 +15,7 @@ Hyperparams = Args()
 
 torch.manual_seed(Hyperparams.seed)
 
-BasePath = './runs/tox21/' + Hyperparams.experiment_name
+BasePath = './runs/cycliq-multi/' + Hyperparams.experiment_name
 if not osp.exists(BasePath):
     os.makedirs(BasePath + "/ckpt")
     os.makedirs(BasePath + "/plots")
@@ -27,8 +27,7 @@ else:
     os.makedirs(BasePath + "/plots")
 
 writer = SummaryWriter(BasePath + '/plots')
-
-train_loader, val_loader, test_loader, *extra = preprocess('tox21', Hyperparams)
+train_loader, val_loader, test_loader, *extra = preprocess('cycliq-multi', Hyperparams)
 train_ds, val_ds, test_ds, num_features, num_classes = extra
 
 len_train = len(train_ds)
@@ -37,7 +36,7 @@ len_test = len(test_ds)
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-dropout = 0.4
+dropout = 0.2
 
 model = GCNN(
     num_input=num_features,
@@ -67,7 +66,7 @@ def train(epoch):
         data = data.to(device)
         optimizer.zero_grad()
         output, _ = model(data.x, data.edge_index, batch=data.batch)
-        loss = F.nll_loss(F.log_softmax(output, dim=-1), data.y, weight=Hyperparams.weight.to(device))
+        loss = F.nll_loss(F.log_softmax(output, dim=-1), data.y)
         loss.backward()
         loss_all += data.num_graphs * loss.item()
         optimizer.step()
@@ -84,12 +83,11 @@ def test(loader):
     for data in loader:
         data = data.to(device)
         pred, _ = model(data.x, data.edge_index, batch=data.batch)
-        loss = F.nll_loss(F.log_softmax(pred, dim=-1), data.y, weight=Hyperparams.weight.to(device))
+        loss = F.nll_loss(F.log_softmax(pred, dim=-1), data.y)
         pred = pred.max(dim=1)[1]
 
         y = torch.cat([y, data.y])
         yp = torch.cat([yp, pred])
-
         loss_all += data.num_graphs * loss.item()
 
     return (
@@ -139,3 +137,11 @@ for epoch in range(Hyperparams.epochs):
                        'val_f1': val_f1,
                        'train_prec': train_prec,
                        'val_prec': val_prec}, outfile)
+
+
+
+
+val_acc, val_prec, val_rec, val_f1, l = test(test_loader)
+
+print(f'Val -> Acc: {val_acc:.5f}  Rec: {val_rec:.5f}  \
+Prec: {val_prec:.5f}  F1: {val_f1:.5f}')
