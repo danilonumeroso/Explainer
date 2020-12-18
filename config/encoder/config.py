@@ -4,7 +4,9 @@ from os import path
 _Hyperparams = namedtuple(
     'Hyperparams',
     [
+        'dataset',
         'lr',
+        'dropout',
         'batch_size',
         'test_split',
         'hidden_size',
@@ -31,7 +33,9 @@ def Args():
 
     parser = ap.ArgumentParser(description='Encoder Hyperparams')
 
+    parser.add_argument('--dataset')
     parser.add_argument('--lr', type=float, default=5e-4)
+    parser.add_argument('--dropout', type=float, default=0.1)
     parser.add_argument('--hidden_size', type=int, default=128)
     parser.add_argument('--epochs', type=int, default=100)
     parser.add_argument('--batch_size', type=int, default=60)
@@ -51,6 +55,8 @@ def Args():
         optim = torch.optim.Adam
 
     return _Hyperparams(
+        dataset=args.dataset,
+        dropout=args.dropout,
         lr=args.lr,
         hidden_size=args.hidden_size,
         optimizer=optim,

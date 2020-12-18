@@ -7,13 +7,13 @@ import os.path as osp
 from config.encoder import Args, Path
 from torch_geometric.data import DataLoader, InMemoryDataset
 from torch.nn import functional as F
-from utils.molecules import check_molecule_validity, pyg_to_mol_tox21, pyg_to_mol_esol
+from utils.molecules import check_molecule_validity, pyg_to_mol_tox21, pyg_to_mol_esol, mol_from_smiles
 from torch_geometric.datasets import TUDataset, MoleculeNet
 from torch_geometric.io.tu import split, read_file, cat
 from torch_geometric.utils import remove_self_loops
 from torch_sparse import coalesce
 from torch_geometric.data import Data
-
+from torch_geometric.datasets.molecule_net import x_map, e_map
 
 def pad(sample, n_pad):
     sample.x = F.pad(sample.x, (0,n_pad), "constant", 0)
