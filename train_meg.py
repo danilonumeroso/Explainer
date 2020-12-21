@@ -10,8 +10,7 @@ import typer
 
 from models.explainer import CF_Tox21, NCF_Tox21, Agent, CF_Esol, NCF_Esol
 from torch.utils.tensorboard import SummaryWriter
-from rdkit import Chem
-from utils import SortedQueue, morgan_bit_fingerprint, get_split, get_dgn, mol_to_smiles, x_map_tox21, pyg_to_mol_tox21
+from utils import SortedQueue, morgan_bit_fingerprint, get_split, get_dgn, mol_to_smiles, x_map_tox21, pyg_to_mol_tox21, mol_from_smiles
 from torch.nn import functional as F
 from torch_geometric.utils import to_networkx
 
@@ -64,8 +63,11 @@ def tox21(general_params, **args):
     ncf_env = NCF_Tox21(**params)
     ncf_env.initialize()
 
-    meg_train(writer, cf_env, cf_queue, marker="cf", tb_name="tox21", args=args)
-    meg_train(writer, ncf_env, ncf_queue, marker="ncf", tb_name="tox_21", args=args)
+    def action_encoder(action):
+        return morgan_bit_fingerprint(action, args['fp_length'], args['fp_radius']).numpy()
+
+    meg_train(writer, action_encoder, args['fp_length'], cf_env, cf_queue, marker="cf", tb_name="tox21", args=args)
+    meg_train(writer, action_encoder, args['fp_length'], ncf_env, ncf_queue, marker="ncf", tb_name="tox_21", args=args)
 
     overall_queue = []
     overall_queue.append({
@@ -98,7 +100,7 @@ def esol(general_params, **args):
     print(f'Molecule: {original_molecule.smiles}')
 
     atoms_ = np.unique(
-        [x.GetSymbol() for x in Chem.MolFromSmiles(original_molecule.smiles).GetAtoms()]
+        [x.GetSymbol() for x in mol_from_smiles(original_molecule.smiles).GetAtoms()]
     )
 
     params = {
@@ -122,8 +124,11 @@ def esol(general_params, **args):
     ncf_env = NCF_Esol(**params)
     ncf_env.initialize()
 
-    meg_train(writer, cf_env, cf_queue, marker="cf", tb_name="esol", args=args)
-    meg_train(writer, ncf_env, ncf_queue, marker="ncf", tb_name="esol", args=args)
+    def action_encoder(action):
+        return morgan_bit_fingerprint(action, args['fp_length'], args['fp_radius']).numpy()
+
+    meg_train(writer, action_encoder, args['fp_length'], cf_env, cf_queue, marker="cf", tb_name="esol", args=args)
+    meg_train(writer, action_encoder, args['fp_length'], ncf_env, ncf_queue, marker="ncf", tb_name="esol", args=args)
 
     overall_queue = []
     overall_queue.append({
@@ -142,9 +147,9 @@ def esol(general_params, **args):
 
     save_results(base_path, overall_queue, args)
 
-def meg_train(writer, environment, queue, marker, tb_name, args):
+def meg_train(writer, action_encoder, n_input, environment, queue, marker, tb_name, args):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    agent = Agent(args['fp_length'] + 1, 1, device, args['lr'], args['replay_buffer_size'])
+    agent = Agent(n_input + 1, 1, device, args['lr'], args['replay_buffer_size'])
 
     eps = 1.0
     batch_losses = []
@@ -158,14 +163,10 @@ def meg_train(writer, environment, queue, marker, tb_name, args):
         observations = np.vstack(
             [
                 np.append(
-                    morgan_bit_fingerprint(
-                        smiles,
-                        args['fp_length'],
-                        args['fp_radius']
-                    ).numpy(),
+                    action_encoder(action),
                     steps_left
                 )
-                for smiles in valid_actions
+                for action in valid_actions
             ]
         )
 
@@ -174,12 +175,8 @@ def meg_train(writer, environment, queue, marker, tb_name, args):
         action = valid_actions[a]
         result = environment.step(action)
 
-        action_fingerprint = np.append(
-            morgan_bit_fingerprint(
-                action,
-                args['fp_length'],
-                args['fp_radius']
-            ).numpy(),
+        action_embedding = np.append(
+            action_encoder(action),
             steps_left
         )
 
@@ -191,14 +188,10 @@ def meg_train(writer, environment, queue, marker, tb_name, args):
 
         steps_left = args['max_steps_per_episode'] - environment.num_steps_taken
 
-        action_fingerprints = np.vstack(
+        action_embeddings = np.vstack(
             [
                 np.append(
-                    morgan_bit_fingerprint(
-                        act,
-                        args['fp_length'],
-                        args['fp_radius']
-                    ).numpy(),
+                    action_encoder(act),
                     steps_left,
                 )
                 for act in environment.get_valid_actions()
@@ -206,9 +199,9 @@ def meg_train(writer, environment, queue, marker, tb_name, args):
         )
 
         agent.replay_buffer.push(
-            torch.as_tensor(action_fingerprint).float(),
+            torch.as_tensor(action_embedding).float(),
             out['reward'],
-            torch.as_tensor(action_fingerprints).float(),
+            torch.as_tensor(action_embeddings).float(),
             float(result.terminated)
         )
 

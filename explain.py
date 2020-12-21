@@ -8,15 +8,15 @@ import networkx as nx
 
 from tqdm import tqdm as tq
 from geomloss import SamplesLoss
-from config.explainer import Elements
 from torch.nn import Sequential, Linear
 from torch.nn import functional as F
 from torch_geometric.utils import accuracy, precision, recall, f1_score
 from pathlib import Path
+from rdkit import Chem
 from rdkit.Chem import Draw
 from models import GNNExplainer_
 from models.encoder import GCNN
-from utils import get_split, get_dgn, mol_to_tox21_pyg, mol_to_esol_pyg, mol_from_smiles, morgan_count_fingerprint
+from utils import get_split, get_dgn, mol_to_tox21_pyg, mol_to_esol_pyg, mol_from_smiles, morgan_count_fingerprint, x_map_tox21, mol_to_smiles
 
 app = typer.Typer(add_completion=False)
 
@@ -91,7 +91,7 @@ def gnn_explainer(dataset_name: str, experiment_name: str,
         labels = {} # TODO: extract labels the right way
         if dataset_name == 'tox21':
             labels = {
-                i: Elements(e).name
+                i: x_map_tox21(e).name
                 for i, e in enumerate([x.tolist().index(1) for x in data.x.numpy()])
             }
         elif dataset_name == 'esol':
@@ -117,10 +117,14 @@ def gnn_explainer(dataset_name: str, experiment_name: str,
 def linear_model(data_path: Path, num_input: int,
                  num_output: int, epochs: int):
     data = json.load(open(data_path, 'r'))
+
+    info = [{} for _ in data]
+
     X = torch.stack([
-        morgan_count_fingerprint(d['smiles'], num_input, 2).tensor()
-        for d in data
+        morgan_count_fingerprint(d['smiles'], num_input, 2, bitInfo=info[i]).tensor()
+        for i, d in enumerate(data)
     ]).float()
+
 
     Y = torch.stack([
         torch.tensor(d['prediction']['class'])
@@ -153,10 +157,26 @@ def linear_model(data_path: Path, num_input: int,
             print(f"Recall: {recall(Y, yp, 2).mean().item():.4f}")
             print(f"F1 Score: {f1_score(Y, yp, 2).mean().item():.4f}")
 
-        coeff = interpretable_model[0].weight.abs().max(dim=0)[0].detach().numpy()
+    weight = interpretable_model[0].weight
 
-    for i, value in enumerate(coeff):
-        print(f"Feature {i} = {value}")
+    for c in range(num_output):
+        print(f"Feature importance for class {c}:")
+        for k, value in enumerate(weight[c].detach().numpy()):
+            print(f"Feature {k} = {value}")
+
+    for i, d in enumerate(data):
+        c = d['prediction']['class']
+        mol = mol_from_smiles(d['smiles'])
+
+        j = weight[c].argmax().item()
+
+        print(f"Explanation for {i}: {d['smiles']}")
+        print(f"info: {info[i][j]}")
+        for (atom, radius) in info[i][j]:
+            env = Chem.FindAtomEnvironmentOfRadiusN(mol, radius, atom)
+            map_ = {}
+            fragment = Chem.PathToSubmol(mol, env, atomMap=map_)
+            print(mol_to_smiles(fragment))
 
 
 @app.command(name='contrast')
