@@ -6,7 +6,7 @@ import os.path as osp
 
 from torch_geometric.data import DataLoader, InMemoryDataset
 from torch.nn import functional as F
-from utils.molecules import check_molecule_validity, pyg_to_mol_tox21, pyg_to_mol_esol, mol_from_smiles
+from utils.molecules import check_molecule_validity, pyg_to_mol_tox21, pyg_to_mol_esol, mol_from_smiles, mol_to_smiles, mol_to_esol_pyg
 from torch_geometric.datasets import TUDataset, MoleculeNet
 from torch_geometric.io.tu import split, read_file, cat
 from torch_geometric.utils import remove_self_loops
@@ -15,7 +15,6 @@ from torch_geometric.data import Data
 from torch_geometric.datasets.molecule_net import x_map, e_map
 
 def pad(sample, n_pad):
-    sample.x = F.pad(sample.x, (0,n_pad), "constant", 0)
     return sample
 
 
@@ -47,16 +46,25 @@ def preprocess(dataset_name, experiment_name, batch_size):
 
 def _preprocess_tox21(experiment_name, batch_size):
 
-    dataset_tr = TUDataset('data/tox21',
-                        name='Tox21_AhR_training',
-                        pre_transform=lambda sample: pad(sample, 3))
+    def pre_transform(sample, n_pad):
+        sample.x = F.pad(sample.x, (0,n_pad), "constant")
+        # mol = mol_from_smiles(mol_to_smiles(pyg_to_mol_tox21(sample)))
+        # sample = mol_to_esol_pyg(mol)
+        # sample.smiles = mol_to_smiles(sample)
+        return sample
 
-    dataset_vl = TUDataset('data/tox21',
-                        name='Tox21_AhR_evaluation')
 
-    dataset_ts = TUDataset('data/tox21',
-                        name='Tox21_AhR_testing',
-                        pre_transform=lambda sample: pad(sample, 2))
+    dataset_tr = TUDataset('data/tox21evo',
+                           name='Tox21_AhR_training',
+                           pre_transform=lambda sample: pre_transform(sample, 3))
+
+    dataset_vl = TUDataset('data/tox21evo',
+                           name='Tox21_AhR_evaluation',
+                           pre_transform=lambda sample: pre_transform(sample, 0))
+
+    dataset_ts = TUDataset('data/tox21evo',
+                           name='Tox21_AhR_testing',
+                           pre_transform=lambda sample: pre_transform(sample, 2))
 
     data_list = (
         [dataset_tr.get(idx) for idx in range(len(dataset_tr))] +
@@ -203,28 +211,3 @@ _PREPROCESS = {
     'cycliq': _preprocess_cycliq,
     'cycliq-multi': _preprocess_cycliq_multi,
 }
-
-
-def read_cycliq_data(folder, prefix):
-    files = glob.glob(osp.join(folder, '{}_*.txt'.format(prefix)))
-    names = [f.split(os.sep)[-1][len(prefix) + 1:-4] for f in files]
-
-    edge_index = read_file(folder, prefix, 'A', torch.long).t() - 1
-    batch = read_file(folder, prefix, 'graph_indicator', torch.long) - 1
-
-    x = torch.ones((edge_index.max().item() + 1, 10))
-
-    edge_attr = torch.ones((edge_index.size(1), 5))
-
-    y = read_file(folder, prefix, 'graph_labels', torch.long)
-    _, y = y.unique(sorted=True, return_inverse=True)
-
-    num_nodes = edge_index.max().item() + 1 if x is None else x.size(0)
-    edge_index, edge_attr = remove_self_loops(edge_index, edge_attr)
-    edge_index, edge_attr = coalesce(edge_index, edge_attr, num_nodes,
-                                     num_nodes)
-
-    data = Data(x=x, edge_index=edge_index, edge_attr=edge_attr, y=y)
-    data, slices = split(data, batch)
-
-    return data, slices

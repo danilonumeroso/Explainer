@@ -4,7 +4,6 @@ import shutil
 
 import torch
 from torch_geometric.data import InMemoryDataset
-from utils import read_cycliq_data
 
 class CYCLIQ(InMemoryDataset):
 
@@ -54,3 +53,27 @@ class CYCLIQ(InMemoryDataset):
 
     def __repr__(self):
         return '{}({})'.format(self.name, len(self))
+
+def read_cycliq_data(folder, prefix):
+    files = glob.glob(osp.join(folder, '{}_*.txt'.format(prefix)))
+    names = [f.split(os.sep)[-1][len(prefix) + 1:-4] for f in files]
+
+    edge_index = read_file(folder, prefix, 'A', torch.long).t() - 1
+    batch = read_file(folder, prefix, 'graph_indicator', torch.long) - 1
+
+    x = torch.ones((edge_index.max().item() + 1, 10))
+
+    edge_attr = torch.ones((edge_index.size(1), 5))
+
+    y = read_file(folder, prefix, 'graph_labels', torch.long)
+    _, y = y.unique(sorted=True, return_inverse=True)
+
+    num_nodes = edge_index.max().item() + 1 if x is None else x.size(0)
+    edge_index, edge_attr = remove_self_loops(edge_index, edge_attr)
+    edge_index, edge_attr = coalesce(edge_index, edge_attr, num_nodes,
+                                     num_nodes)
+
+    data = Data(x=x, edge_index=edge_index, edge_attr=edge_attr, y=y)
+    data, slices = split(data, batch)
+
+    return data, slices

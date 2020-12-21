@@ -1,16 +1,16 @@
 import torch
 import numpy as np
-import torch.optim as opt
 from models.explainer import MolDQN
 from models.explainer.ReplayMemory import ReplayMemory
-from config.explainer import Args
-
 
 class Agent(object):
-    def __init__(self, num_input, num_output, device):
-
-        Hyperparams = Args()
-        REPLAY_BUFFER_CAPACITY = Hyperparams.replay_buffer_size
+    def __init__(self,
+                 num_input,
+                 num_output,
+                 device,
+                 lr,
+                 replay_buffer_size
+    ):
 
         self.device = device
         self.num_input = num_input
@@ -23,9 +23,9 @@ class Agent(object):
         for p in self.target_dqn.parameters():
             p.requires_grad = False
 
-        self.replay_buffer = ReplayMemory(REPLAY_BUFFER_CAPACITY)
-        self.optimizer = getattr(opt, Hyperparams.optimizer)(
-            self.dqn.parameters(), lr=Hyperparams.lr
+        self.replay_buffer = ReplayMemory(replay_buffer_size)
+        self.optimizer = torch.optim.Adam(
+            self.dqn.parameters(), lr=lr
         )
 
     def action_step(self, observations, epsilon_threshold):
@@ -39,8 +39,6 @@ class Agent(object):
         return action
 
     def train_step(self, batch_size, gamma, polyak):
-
-        Hyperparams = Args()
 
         experience = self.replay_buffer.sample(batch_size)
 

@@ -1,12 +1,10 @@
 import torch
 import torch.nn.functional as F
-import utils
 import numpy as np
 
-from config.explainer import Args
 from rdkit import Chem, DataStructs
 from models.explainer.Environment import Molecule
-from utils import get_similarity, mol_to_smiles
+from utils import get_similarity, mol_to_smiles, mol_from_smiles, pyg_to_mol_esol, mol_to_esol_pyg
 
 class CF_Esol(Molecule):
 
@@ -15,6 +13,8 @@ class CF_Esol(Molecule):
             model_to_explain,
             original_molecule,
             discount_factor,
+            fp_len,
+            fp_rad,
             similarity_set=None,
             weight_sim=0.5,
             similarity_measure="tanimoto",
@@ -22,10 +22,6 @@ class CF_Esol(Molecule):
     ):
         super(CF_Esol, self).__init__(**kwargs)
 
-        Hyperparams = Args()
-
-        self.fp_length = Hyperparams.fingerprint_length
-        self.fp_radius = Hyperparams.fingerprint_radius
         self.discount_factor = discount_factor
         self.model_to_explain = model_to_explain
         self.weight_sim = weight_sim
@@ -37,20 +33,16 @@ class CF_Esol(Molecule):
 
         self.similarity, self.make_encoding, \
             self.original_encoding = get_similarity(similarity_measure,
-                                                    mol_to_smiles,
+                                                    lambda x: mol_to_smiles(pyg_to_mol_esol(x)),
                                                     model_to_explain,
                                                     original_molecule,
-                                                    self.fp_length,
-                                                    self.fp_radius)
+                                                    fp_len,
+                                                    fp_rad)
 
     def _reward(self):
 
-        molecule = Chem.MolFromSmiles(self._state)
-
-        if molecule is None or len(molecule.GetBonds()) == 0:
-            return 0.0, 0.0, 0.0
-
-        molecule = utils.mol_to_esol_pyg(molecule)
+        molecule = mol_from_smiles(self._state)
+        molecule = mol_to_esol_pyg(molecule)
 
         pred, encoding = self.model_to_explain(molecule.x,
                                         molecule.edge_index)

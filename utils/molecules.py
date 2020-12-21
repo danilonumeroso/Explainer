@@ -7,7 +7,6 @@ from rdkit.Chem import AllChem, RDConfig
 from enum import Enum
 from torch_geometric.data import Data
 from torch_geometric.datasets.molecule_net import e_map as e_map_esol, x_map as x_map_esol
-from config.explainer import Args
 
 sys.path.append(os.path.join(RDConfig.RDContribDir, "SA_Score"))
 
@@ -16,14 +15,6 @@ def mol_from_smiles(smiles):
     return Chem.MolFromSmiles(smiles)
 
 def mol_to_smiles(mol):
-    args = Args()
-
-    if isinstance(mol, Data) and args.dataset.lower() == 'tox21':
-        mol = pyg_to_mol_tox21(mol)
-
-    elif isinstance(mol, Data) and args.dataset.lower() == 'esol':
-        mol = pyg_to_mol_esol(mol)
-
     return Chem.MolToSmiles(mol)
 
 def atom_valences(atom_types):
@@ -76,30 +67,30 @@ def mol_to_tox21_pyg(molecule):
 
     return pyg_mol
 
-def mol_to_esol_pyg(mol):
+def mol_to_esol_pyg(molecule):
     if isinstance(molecule, str):
         molecule = mol_from_smiles(molecule)
 
     xs = []
-    for atom in mol.GetAtoms():
+    for atom in molecule.GetAtoms():
         x = []
-        x.append(x_map_tox21['atomic_num'].index(atom.GetAtomicNum()))
-        x.append(x_map_tox21['chirality'].index(str(atom.GetChiralTag())))
-        x.append(x_map_tox21['degree'].index(atom.GetTotalDegree()))
-        x.append(x_map_tox21['formal_charge'].index(atom.GetFormalCharge()))
-        x.append(x_map_tox21['num_hs'].index(atom.GetTotalNumHs()))
-        x.append(x_map_tox21['num_radical_electrons'].index(
+        x.append(x_map_esol['atomic_num'].index(atom.GetAtomicNum()))
+        x.append(x_map_esol['chirality'].index(str(atom.GetChiralTag())))
+        x.append(x_map_esol['degree'].index(atom.GetTotalDegree()))
+        x.append(x_map_esol['formal_charge'].index(atom.GetFormalCharge()))
+        x.append(x_map_esol['num_hs'].index(atom.GetTotalNumHs()))
+        x.append(x_map_esol['num_radical_electrons'].index(
             atom.GetNumRadicalElectrons()))
-        x.append(x_map_tox21['hybridization'].index(
+        x.append(x_map_esol['hybridization'].index(
             str(atom.GetHybridization())))
-        x.append(x_map_tox21['is_aromatic'].index(atom.GetIsAromatic()))
-        x.append(x_map_tox21['is_in_ring'].index(atom.IsInRing()))
+        x.append(x_map_esol['is_aromatic'].index(atom.GetIsAromatic()))
+        x.append(x_map_esol['is_in_ring'].index(atom.IsInRing()))
         xs.append(x)
 
         x = torch.tensor(xs, dtype=torch.float).view(-1, 9)
 
     edge_indices, edge_attrs = [], []
-    for bond in mol.GetBonds():
+    for bond in molecule.GetBonds():
         i = bond.GetBeginAtomIdx()
         j = bond.GetEndAtomIdx()
 

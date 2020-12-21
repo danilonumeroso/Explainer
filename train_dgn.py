@@ -8,9 +8,14 @@ from models.encoder import GCNN
 from utils import preprocess, get_dgn, train_cycle_classifier, train_cycle_regressor
 
 
-def main(dataset_name: str, experiment_name: str,
-         lr: float, hidden_size: int, batch_size: int,
-         dropout: float, epochs:int, seed: int):
+def main(dataset_name: str,
+         experiment_name: str = typer.Argument("test"),
+         lr: float = typer.Argument(0.01),
+         hidden_size: int = typer.Argument(32),
+         batch_size: int = typer.Argument(32),
+         dropout: float = typer.Argument(0.1),
+         epochs:int = typer.Argument(50),
+         seed: int = typer.Argument(0)):
 
     torch.manual_seed(seed)
 

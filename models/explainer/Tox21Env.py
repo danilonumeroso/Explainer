@@ -3,9 +3,8 @@ import torch
 
 from rdkit import Chem, DataStructs
 from models.explainer.Environment import Molecule
-from config.explainer import Args
 from torch.nn import functional as F
-from utils import get_similarity, mol_to_smiles, mol_from_smiles, mol_to_tox21_pyg
+from utils import get_similarity, mol_to_smiles, mol_from_smiles, mol_to_tox21_pyg, pyg_to_mol_tox21
 
 
 class CF_Tox21(Molecule):
@@ -14,6 +13,8 @@ class CF_Tox21(Molecule):
             model_to_explain,
             original_molecule,
             discount_factor,
+            fp_len,
+            fp_rad,
             similarity_set=None,
             weight_sim=0.5,
             similarity_measure="tanimoto",
@@ -21,10 +22,6 @@ class CF_Tox21(Molecule):
     ):
         super(CF_Tox21, self).__init__(**kwargs)
 
-        Hyperparams = Args()
-
-        self.fp_length = Hyperparams.fingerprint_length
-        self.fp_radius = Hyperparams.fingerprint_radius
         self.class_to_optimise = 1 - original_molecule.y.item()
         self.discount_factor = discount_factor
         self.model_to_explain = model_to_explain
@@ -33,11 +30,11 @@ class CF_Tox21(Molecule):
 
         self.similarity, self.make_encoding, \
             self.original_encoding = get_similarity(similarity_measure,
-                                                    mol_to_smiles,
+                                                    lambda x: mol_to_smiles(pyg_to_mol_tox21(x)),
                                                     model_to_explain,
                                                     original_molecule,
-                                                    self.fp_length,
-                                                    self.fp_radius)
+                                                    fp_len,
+                                                    fp_rad)
 
     def _reward(self):
         molecule = mol_from_smiles(self._state)

@@ -6,24 +6,23 @@ import json
 import os
 import utils
 import networkx as nx
+import typer
 
 from models.explainer import CF_Tox21, NCF_Tox21, Agent, CF_Esol, NCF_Esol
-from config.explainer import Args
 from torch.utils.tensorboard import SummaryWriter
 from rdkit import Chem
-from utils import SortedQueue, morgan_bit_fingerprint, get_split, get_dgn, mol_to_smiles, x_map_tox21
+from utils import SortedQueue, morgan_bit_fingerprint, get_split, get_dgn, mol_to_smiles, x_map_tox21, pyg_to_mol_tox21
 from torch.nn import functional as F
 from torch_geometric.utils import to_networkx
 
-def tox21(general_params):
-    Hyperparams = Args()
-    BasePath = './runs/tox21/' + Hyperparams.experiment
-    writer = SummaryWriter(BasePath + '/plots')
+def tox21(general_params, **args):
+    base_path = './runs/tox21/' + args['experiment_name']
+    writer = SummaryWriter(base_path + '/plots')
 
-    dataset = get_split('tox21', 'test', Hyperparams.experiment)
+    dataset = get_split('tox21', 'test',  args['experiment_name'])
 
-    original_molecule = dataset[Hyperparams.sample]
-    model_to_explain = get_dgn("tox21", Hyperparams.experiment)
+    original_molecule = dataset[args['sample']]
+    model_to_explain = get_dgn("tox21",  args['experiment_name'])
 
     out, original_encoding = model_to_explain(original_molecule.x,
                                               original_molecule.edge_index)
@@ -33,7 +32,7 @@ def tox21(general_params):
 
     assert pred_class == original_molecule.y.item()
 
-    smiles = mol_to_smiles(original_molecule)
+    smiles = mol_to_smiles(pyg_to_mol_tox21(original_molecule))
 
     print(f'Molecule: {smiles}')
 
@@ -65,8 +64,8 @@ def tox21(general_params):
     ncf_env = NCF_Tox21(**params)
     ncf_env.initialize()
 
-    meg_train(writer, cf_env, cf_queue, marker="cf", tb_name="tox21")
-    meg_train(writer, ncf_env, ncf_queue, marker="ncf", tb_name="tox_21")
+    meg_train(writer, cf_env, cf_queue, marker="cf", tb_name="tox21", args=args)
+    meg_train(writer, ncf_env, ncf_queue, marker="ncf", tb_name="tox_21", args=args)
 
     overall_queue = []
     overall_queue.append({
@@ -84,17 +83,16 @@ def tox21(general_params):
     overall_queue.extend(cf_queue.data_)
     overall_queue.extend(ncf_queue.data_)
 
-    save_results(BasePath, overall_queue)
+    save_results(base_path, overall_queue, args)
 
-def esol(general_params):
-    Hyperparams = Args()
-    BasePath = './runs/esol/' + Hyperparams.experiment
-    writer = SummaryWriter(BasePath + '/plots')
+def esol(general_params, **args):
+    base_path = './runs/esol/' +  args['experiment_name']
+    writer = SummaryWriter(base_path + '/plots')
 
-    dataset = get_split('esol', 'test', Hyperparams.experiment)
-    original_molecule = dataset[Hyperparams.sample]
+    dataset = get_split('esol', 'test',  args['experiment_name'])
+    original_molecule = dataset[args['sample']]
     original_molecule.x = original_molecule.x.float()
-    model_to_explain = get_dgn("esol", Hyperparams.experiment)
+    model_to_explain = get_dgn("esol",  args['experiment_name'])
 
     og_prediction, original_encoding = model_to_explain(original_molecule.x, original_molecule.edge_index)
     print(f'Molecule: {original_molecule.smiles}')
@@ -112,7 +110,7 @@ def esol(general_params):
         'model_to_explain': model_to_explain,
         'original_molecule': original_molecule,
         'weight_sim': 0.2,
-        'similarity_measure': 'combined'
+        'similarity_measure': 'combined',
     }
 
     N = 20
@@ -124,8 +122,8 @@ def esol(general_params):
     ncf_env = NCF_Esol(**params)
     ncf_env.initialize()
 
-    meg_train(writer, cf_env, cf_queue, marker="cf", tb_name="esol")
-    meg_train(writer, ncf_env, ncf_queue, marker="ncf", tb_name="esol")
+    meg_train(writer, cf_env, cf_queue, marker="cf", tb_name="esol", args=args)
+    meg_train(writer, ncf_env, ncf_queue, marker="ncf", tb_name="esol", args=args)
 
     overall_queue = []
     overall_queue.append({
@@ -142,20 +140,19 @@ def esol(general_params):
     overall_queue.extend(cf_queue.data_)
     overall_queue.extend(ncf_queue.data_)
 
-    save_results(BasePath, overall_queue)
+    save_results(base_path, overall_queue, args)
 
-def meg_train(writer, environment, queue, marker, tb_name):
-    Hyperparams = Args()
+def meg_train(writer, environment, queue, marker, tb_name, args):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    agent = Agent(Hyperparams.fingerprint_length + 1, 1, device)
+    agent = Agent(args['fp_length'] + 1, 1, device, args['lr'], args['replay_buffer_size'])
 
     eps = 1.0
     batch_losses = []
     episode = 0
 
-    for it in range(Hyperparams.epochs):
+    for it in range(args['epochs']):
 
-        steps_left = Hyperparams.max_steps_per_episode - environment.num_steps_taken
+        steps_left = args['max_steps_per_episode'] - environment.num_steps_taken
         valid_actions = list(environment.get_valid_actions())
 
         observations = np.vstack(
@@ -163,8 +160,8 @@ def meg_train(writer, environment, queue, marker, tb_name):
                 np.append(
                     morgan_bit_fingerprint(
                         smiles,
-                        Hyperparams.fingerprint_length,
-                        Hyperparams.fingerprint_radius
+                        args['fp_length'],
+                        args['fp_radius']
                     ).numpy(),
                     steps_left
                 )
@@ -180,8 +177,8 @@ def meg_train(writer, environment, queue, marker, tb_name):
         action_fingerprint = np.append(
             morgan_bit_fingerprint(
                 action,
-                Hyperparams.fingerprint_length,
-                Hyperparams.fingerprint_radius
+                args['fp_length'],
+                args['fp_radius']
             ).numpy(),
             steps_left
         )
@@ -192,15 +189,15 @@ def meg_train(writer, environment, queue, marker, tb_name):
         writer.add_scalar(f'{tb_name}/prediction', out['reward_pred'], it)
         writer.add_scalar(f'{tb_name}/similarity', out['reward_sim'], it)
 
-        steps_left = Hyperparams.max_steps_per_episode - environment.num_steps_taken
+        steps_left = args['max_steps_per_episode'] - environment.num_steps_taken
 
         action_fingerprints = np.vstack(
             [
                 np.append(
                     morgan_bit_fingerprint(
                         act,
-                        Hyperparams.fingerprint_length,
-                        Hyperparams.fingerprint_radius
+                        args['fp_length'],
+                        args['fp_radius']
                     ).numpy(),
                     steps_left,
                 )
@@ -215,15 +212,14 @@ def meg_train(writer, environment, queue, marker, tb_name):
             float(result.terminated)
         )
 
-        if it % Hyperparams.update_interval == 0 and len(agent.replay_buffer) >= Hyperparams.batch_size:
-            for update in range(Hyperparams.num_updates_per_it):
-                loss = agent.train_step(
-                    Hyperparams.batch_size,
-                    Hyperparams.gamma,
-                    Hyperparams.polyak
-                )
-                loss = loss.item()
-                batch_losses.append(loss)
+        if it % args['update_interval'] == 0 and len(agent.replay_buffer) >= args['batch_size']:
+            loss = agent.train_step(
+                args['batch_size'],
+                args['gamma'],
+                args['polyak']
+            )
+            loss = loss.item()
+            batch_losses.append(loss)
 
         if done:
             episode += 1
@@ -241,8 +237,8 @@ def meg_train(writer, environment, queue, marker, tb_name):
             environment.initialize()
 
 
-def save_results(base_path, queue, quantitative=True):
-    output_dir = base_path + f"/meg_output/{Hyperparams.sample}"
+def save_results(base_path, queue, args, quantitative=False):
+    output_dir = base_path + f"/meg_output/{args['sample']}"
     embedding_dir = output_dir + "/embeddings"
     gexf_dir = output_dir + "/gexf_data"
 
@@ -261,17 +257,55 @@ def save_results(base_path, queue, quantitative=True):
     with open(output_dir + "/data.json", "w") as outf:
         json.dump(queue, outf, indent=2)
 
-if __name__ == '__main__':
-    Hyperparams = Args()
-    params = {
+def main(dataset: str,
+         experiment_name: str = typer.Argument("test"),
+         sample: int = typer.Option(0),
+         epochs: int = typer.Option(5000),
+         max_steps_per_episode: int = typer.Option(1),
+         fp_length: int = typer.Option(1024),
+         fp_radius: int = typer.Option(2),
+         lr: float = typer.Option(1e-4),
+         polyak: float = typer.Option(0.995),
+         gamma: float = typer.Option(0.95),
+         discount: float = typer.Option(0.9),
+         replay_buffer_size: int = typer.Option(10000),
+         batch_size: int = typer.Option(1),
+         update_interval: int = typer.Option(1)
+):
+
+    general_params = {
         # General-purpose params
-        'discount_factor': Hyperparams.discount,
+        'discount_factor': discount,
         'allow_removal': True,
         'allow_no_modification': False,
         'allow_bonds_between_rings': True,
-        'allowed_ring_sizes': set(Hyperparams.allowed_ring_sizes),
-        'max_steps': Hyperparams.max_steps_per_episode,
+        'allowed_ring_sizes': set([5, 6]),
+        'max_steps': max_steps_per_episode,
+        'fp_len': fp_length,
+        'fp_rad': fp_radius
     }
 
+    dataset = dataset.lower()
+    if dataset == 'tox21':
+        meg = tox21
+    elif dataset == 'esol':
+        meg = esol
 
-    tox21(params) if Hyperparams.dataset.lower() == 'tox21' else esol(params)
+    meg(general_params,
+        experiment_name=experiment_name,
+        sample=sample,
+        epochs=epochs,
+        max_steps_per_episode=max_steps_per_episode,
+        fp_length=fp_length,
+        fp_radius=fp_radius,
+        lr=lr,
+        polyak=polyak,
+        gamma=gamma,
+        discount=discount,
+        replay_buffer_size=replay_buffer_size,
+        batch_size=batch_size,
+        update_interval=update_interval)
+
+
+if __name__ == '__main__':
+    typer.run(main)
