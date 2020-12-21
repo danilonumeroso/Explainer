@@ -52,7 +52,7 @@ class CF_Esol(Molecule):
 
         molecule = utils.mol_to_esol_pyg(molecule)
 
-        pred, _ = self.model_to_explain(molecule.x,
+        pred, encoding = self.model_to_explain(molecule.x,
                                         molecule.edge_index)
 
         sim = self.similarity(self.make_encoding(molecule), self.original_encoding)
@@ -65,10 +65,12 @@ class CF_Esol(Molecule):
         reward = gain * loss * (1 - self.weight_sim) + sim * self.weight_sim
 
         return {
+            'pyg': molecule,
             'reward': reward * self.discount_factor ** (self.max_steps - self.num_steps_taken),
             'reward_pred': loss,
             'reward_gain': gain,
             'reward_sim': sim,
+            'encoding': encoding.numpy(),
             'prediction': {
                 'type': 'regression',
                 'output': pred.squeeze().detach().numpy().tolist(),

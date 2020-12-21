@@ -5,15 +5,15 @@ import torchvision
 import json
 import os
 import utils
+import networkx as nx
 
-from torch_geometric.datasets import TUDataset
-from torch_geometric.data import DataLoader
 from models.explainer import CF_Tox21, NCF_Tox21, Agent, CF_Esol, NCF_Esol
 from config.explainer import Args, Path, Elements
 from torch.utils.tensorboard import SummaryWriter
 from rdkit import Chem
 from utils import SortedQueue, morgan_bit_fingerprint, get_split, get_dgn, mol_to_smiles
 from torch.nn import functional as F
+from torch_geometric.utils import to_networkx
 
 def tox21(general_params):
     Hyperparams = Args()
@@ -70,8 +70,10 @@ def tox21(general_params):
 
     overall_queue = []
     overall_queue.append({
+        'pyg': original_molecule,
         'marker': 'og',
         'smiles': smiles,
+        'encoding': original_encoding.numpy(),
         'prediction': {
             'type': 'bin_classification',
             'output': logits.numpy().tolist(),
@@ -82,8 +84,7 @@ def tox21(general_params):
     overall_queue.extend(cf_queue.data_)
     overall_queue.extend(ncf_queue.data_)
 
-    with open(BasePath + f"/counterfacts/{Hyperparams.sample}.json", "w") as outf:
-        json.dump(overall_queue, outf, indent=2)
+    save_results(BasePath, overall_queue)
 
 def esol(general_params):
     Hyperparams = Args()
@@ -96,7 +97,7 @@ def esol(general_params):
     original_molecule.x = original_molecule.x.float()
     model_to_explain = get_dgn("esol", Hyperparams.experiment)
 
-    og_prediction, _ = model_to_explain(original_molecule.x, original_molecule.edge_index)
+    og_prediction, original_encoding = model_to_explain(original_molecule.x, original_molecule.edge_index)
     print(f'Molecule: {original_molecule.smiles}')
 
     atoms_ = np.unique(
@@ -129,10 +130,12 @@ def esol(general_params):
 
     overall_queue = []
     overall_queue.append({
+        'pyg': original_molecule,
         'marker': 'og',
         'smiles': original_molecule.smiles,
+        'encoding': original_encoding.numpy(),
         'prediction': {
-            'type': 'bin_classification',
+            'type': 'regression',
             'output': og_prediction.squeeze().detach().numpy().tolist(),
             'for_explanation': og_prediction.squeeze().detach().numpy().tolist()
         }
@@ -140,8 +143,7 @@ def esol(general_params):
     overall_queue.extend(cf_queue.data_)
     overall_queue.extend(ncf_queue.data_)
 
-    with open(BasePath + f"/counterfacts/{Hyperparams.sample}.json", "w") as outf:
-        json.dump(overall_queue, outf, indent=2)
+    save_results(BasePath, overall_queue)
 
 def meg_train(writer, environment, queue, marker, tb_name):
     Hyperparams = Args()
@@ -229,7 +231,6 @@ def meg_train(writer, environment, queue, marker, tb_name):
 
             print(f'Episode {episode}::Final Molecule Reward: {out["reward"]:.6f} (pred: {out["reward_pred"]:.6f}, sim: {out["reward_sim"]:.6f})')
             print(f'Episode {episode}::Final Molecule: {action}')
-
             queue.insert({
                 'marker': marker,
                 'smiles': action,
@@ -240,6 +241,26 @@ def meg_train(writer, environment, queue, marker, tb_name):
             batch_losses = []
             environment.initialize()
 
+
+def save_results(base_path, queue, quantitative=False):
+    output_dir = base_path + f"/meg_output/{Hyperparams.sample}/"
+    embedding_dir = output_dir + "embeddings"
+    gexf_dir = output_dir + "gexf"
+
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+        os.makedirs(embedding_dir)
+        os.makedirs(gexf_dir)
+
+    for i, molecule in enumerate(queue):
+        np.save(embedding_dir + f"/{i}", molecule.pop('encoding'))
+        pyg = molecule.pop('pyg')
+        if quantitative:
+            g = to_networkx(pyg, to_undirected=True)
+            nx.write_gexf(g, f"/{i}.{molecule['prediction']['class']}.gexf")
+
+    with open(output_dir + "/data.json", "w") as outf:
+        json.dump(queue, outf, indent=2)
 
 if __name__ == '__main__':
     Hyperparams = Args()

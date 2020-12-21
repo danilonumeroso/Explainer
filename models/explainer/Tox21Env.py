@@ -43,10 +43,7 @@ class CF_Tox21(Molecule):
         molecule = mol_from_smiles(self._state)
         molecule = mol_to_tox21_pyg(molecule)
 
-        # if molecule is None or len(molecule.GetBonds()) == 0:
-        #     return 0.0, 0.0, 0.0
-
-        out, _ = self.model_to_explain(molecule.x, molecule.edge_index)
+        out, encoding = self.model_to_explain(molecule.x, molecule.edge_index)
         out = F.softmax(out, dim=-1).squeeze().detach()
 
         sim_score = self.similarity(self.make_encoding(molecule), self.original_encoding)
@@ -56,13 +53,15 @@ class CF_Tox21(Molecule):
         reward = pred_score * (1 - self.weight_sim) + sim_score * self.weight_sim
 
         return {
-            'reward': reward * self.discount_factor, # ** (self.max_steps - self.num_steps_taken)
+            'pyg': molecule,
+            'reward': reward * self.discount_factor,
             'reward_pred': pred_score,
             'reward_sim': sim_score,
+            'encoding': encoding.numpy(),
             'prediction': {
                 'type': 'bin_classification',
                 'output': out.numpy().tolist(),
-                'for_explanation': pred_score,
+                'for_explanation': pred_class,
                 'class': pred_class
             }
         }

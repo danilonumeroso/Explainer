@@ -17,7 +17,7 @@ if not osp.exists(BasePath):
     os.makedirs(BasePath + "/ckpt")
     os.makedirs(BasePath + "/plots")
     os.makedirs(BasePath + "/splits")
-    os.makedirs(BasePath + "/counterfacts")
+    os.makedirs(BasePath + "/meg_output")
 else:
     import shutil
     shutil.rmtree(BasePath + "/plots", ignore_errors=True)
