@@ -27,17 +27,6 @@ _Hyperparams = namedtuple(
     ]
 )
 
-_Path = namedtuple(
-    'Path',
-    [
-        'data',
-        'counterfacts',
-        'drawings'
-    ]
-)
-
-Hyperparams = None
-
 
 def Args():
 
@@ -89,15 +78,3 @@ def Args():
         update_interval=1,
         num_counterfactuals=args.num_counterfactuals
     )
-
-_BasePath = path.normpath(path.join(
-    path.dirname(path.realpath(__file__)),
-    '..',
-    '..'
-))
-
-Path = _Path(
-    data=lambda x: path.join(_BasePath, 'data', x),
-    counterfacts=lambda x, d: path.join(_BasePath, 'counterfacts', 'files', d, x),
-    drawings=lambda x, d: path.join(_BasePath, 'counterfacts', 'drawings', d, x),
-)

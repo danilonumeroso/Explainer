@@ -1,8 +1,6 @@
 #!/bin/bash
 
 echo $BASH_VERSION
-NAME=train_dgn_$1.py
-OPT=Adam
 VAL_ACCURACY=0
 BEST=0
 
@@ -16,8 +14,8 @@ do
         do
             SEED=$RANDOM
             EXPERIMENT="${OPT}_LR_${LR}_BS_${BS}_HS_${HS}"
-            echo "python ${NAME} --lr ${LR} --hidden_size ${HS} --batch_size ${BS} --seed ${SEED}"
-            python $NAME --lr $LR --hidden_size $HS --batch_size $BS --experiment_name $EXPERIMENT --seed $SEED
+            echo "python train_dgn.py lr: ${LR} hidden_size: ${HS} batch_size: ${BS} seed: ${SEED}"
+            python train_dgn.py $1 $EXPERIMENT $LR $HS $BS 0.1 100 $SEED
 
             VAL_ACCURACY=`cat runs/$1/$EXPERIMENT/best_result.json | python3 -c "import sys, json; print(json.load(sys.stdin)['val_acc'])"`
 

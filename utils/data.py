@@ -4,7 +4,6 @@ import glob
 import os
 import os.path as osp
 
-from config.encoder import Args, Path
 from torch_geometric.data import DataLoader, InMemoryDataset
 from torch.nn import functional as F
 from utils.molecules import check_molecule_validity, pyg_to_mol_tox21, pyg_to_mol_esol, mol_from_smiles
@@ -42,11 +41,11 @@ def get_split(dataset_name, split, experiment):
         return ds
 
 
-def preprocess(dataset_name, args):
-    return _PREPROCESS[dataset_name.lower()](args)
+def preprocess(dataset_name, experiment_name, batch_size):
+    return _PREPROCESS[dataset_name.lower()](experiment_name, batch_size)
 
 
-def _preprocess_tox21(args):
+def _preprocess_tox21(experiment_name, batch_size):
 
     dataset_tr = TUDataset('data/tox21',
                         name='Tox21_AhR_training',
@@ -77,7 +76,7 @@ def _preprocess_tox21(args):
     data_list = POSITIVES + NEGATIVES
     random.shuffle(data_list)
 
-    n = len(data_list) // args.test_split
+    n = len(data_list) // 10
     train_data = data_list[n:]
     val_data = data_list[:n]
     test_data = train_data[:n]
@@ -90,14 +89,14 @@ def _preprocess_tox21(args):
     val.data, val.slices = train.collate(val_data)
     test.data, test.slices = train.collate(test_data)
 
-    torch.save((train.data, train.slices), f'runs/tox21/{args.experiment_name}/splits/train.pth')
-    torch.save((val.data, val.slices), f'runs/tox21/{args.experiment_name}/splits/val.pth')
-    torch.save((test.data, test.slices), f'runs/tox21/{args.experiment_name}/splits/test.pth')
+    torch.save((train.data, train.slices), f'runs/tox21/{experiment_name}/splits/train.pth')
+    torch.save((val.data, val.slices), f'runs/tox21/{experiment_name}/splits/val.pth')
+    torch.save((test.data, test.slices), f'runs/tox21/{experiment_name}/splits/test.pth')
 
     return (
-        DataLoader(train, batch_size=args.batch_size),
-        DataLoader(val,   batch_size=args.batch_size),
-        DataLoader(test,   batch_size=args.batch_size),
+        DataLoader(train, batch_size=batch_size),
+        DataLoader(val,   batch_size=batch_size),
+        DataLoader(test,  batch_size=batch_size),
         train,
         val,
         test,
@@ -106,7 +105,7 @@ def _preprocess_tox21(args):
     )
 
 
-def _preprocess_esol(args):
+def _preprocess_esol(experiment_name, batch_size):
 
     dataset = MoleculeNet(
         'data/esol',
@@ -119,7 +118,7 @@ def _preprocess_esol(args):
 
     random.shuffle(data_list)
 
-    n = len(data_list) // args.test_split
+    n = len(data_list) // 10
 
     train_data = data_list[n:]
     val_data = data_list[:n]
@@ -133,15 +132,15 @@ def _preprocess_esol(args):
     val.data, val.slices = train.collate(val_data)
     test.data, test.slices = train.collate(test_data)
 
-    torch.save((train.data, train.slices), f'runs/esol/{args.experiment_name}/splits/train.pth')
-    torch.save((val.data, val.slices), f'runs/esol/{args.experiment_name}/splits/val.pth')
-    torch.save((test.data, test.slices), f'runs/esol/{args.experiment_name}/splits/test.pth')
+    torch.save((train.data, train.slices), f'runs/esol/{experiment_name}/splits/train.pth')
+    torch.save((val.data, val.slices), f'runs/esol/{experiment_name}/splits/val.pth')
+    torch.save((test.data, test.slices), f'runs/esol/{experiment_name}/splits/test.pth')
 
 
     return (
-        DataLoader(train, batch_size=args.batch_size),
-        DataLoader(val,   batch_size=args.batch_size),
-        DataLoader(test,   batch_size=args.batch_size),
+        DataLoader(train, batch_size=batch_size),
+        DataLoader(val,   batch_size=batch_size),
+        DataLoader(test,  batch_size=batch_size),
         train,
         val,
         test,
@@ -149,13 +148,13 @@ def _preprocess_esol(args):
         train.num_classes,
     )
 
-def _preprocess_cycliq(args):
-    return _cycliq(args, "CYCLIQ")
+def _preprocess_cycliq(experiment_name, batch_size):
+    return _cycliq("CYCLIQ", experiment_name, batch_size)
 
-def _preprocess_cycliq_multi(args):
-    return _cycliq(args, "CYCLIQ-MULTI")
+def _preprocess_cycliq_multi(experiment_name, batch_size):
+    return _cycliq("CYCLIQ-MULTI", experiment_name, batch_size)
 
-def _cycliq(args, name):
+def _cycliq(name, experiment_name, batch_size):
     from utils.cycliq import CYCLIQ
 
     dataset = CYCLIQ(
@@ -169,7 +168,7 @@ def _cycliq(args, name):
 
     random.shuffle(data_list)
 
-    n = len(data_list) // args.test_split
+    n = len(data_list) // 10
 
     train_data = data_list[n:]
     val_data = data_list[:n]
@@ -182,15 +181,15 @@ def _cycliq(args, name):
     val.data, val.slices = train.collate(val_data)
     test.data, test.slices = train.collate(test_data)
 
-    torch.save((train.data, train.slices), f'runs/{name.lower()}/{args.experiment_name}/splits/train.pth')
-    torch.save((val.data, val.slices), f'runs/{name.lower()}/{args.experiment_name}/splits/val.pth')
-    torch.save((test.data, test.slices), f'runs/{name.lower()}/{args.experiment_name}/splits/test.pth')
+    torch.save((train.data, train.slices), f'runs/{name.lower()}/{experiment_name}/splits/train.pth')
+    torch.save((val.data, val.slices), f'runs/{name.lower()}/{experiment_name}/splits/val.pth')
+    torch.save((test.data, test.slices), f'runs/{name.lower()}/{experiment_name}/splits/test.pth')
 
 
     return (
-        DataLoader(train, batch_size=args.batch_size),
-        DataLoader(val,   batch_size=args.batch_size),
-        DataLoader(test,  batch_size=args.batch_size),
+        DataLoader(train, batch_size=batch_size),
+        DataLoader(val,   batch_size=batch_size),
+        DataLoader(test,  batch_size=batch_size),
         train,
         val,
         test,

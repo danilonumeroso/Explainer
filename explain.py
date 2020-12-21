@@ -2,7 +2,13 @@ import json
 import matplotlib.pyplot as plt
 import typer
 import torch
+import os
+import numpy as np
+import networkx as nx
 
+from tqdm import tqdm as tq
+from geomloss import SamplesLoss
+from config.explainer import Elements
 from torch.nn import Sequential, Linear
 from torch.nn import functional as F
 from torch_geometric.utils import accuracy, precision, recall, f1_score
@@ -13,6 +19,26 @@ from models.encoder import GCNN
 from utils import get_split, get_dgn, mol_to_tox21_pyg, mol_to_esol_pyg, mol_from_smiles, morgan_count_fingerprint
 
 app = typer.Typer(add_completion=False)
+
+
+def check_path(output_path: Path):
+    if not output_path.exists():
+        typer.confirm("Output path does not exist, do you want to create it?", abort=True)
+        output_path.mkdir(parents=True)
+
+
+def read_graphs(dataset_path: Path):
+    labels = {}
+    nx_graphs = {}
+    for name in os.listdir(str(dataset_path)):
+        if not name.endswith('gexf'):
+            continue
+        idx, label = name.split('.')[-3:-1]
+        idx, label = int(idx), int(label)
+        nx_graphs[idx] = nx.read_gexf(dataset_path / name)
+        labels[idx] = label
+    print('Found %d samples' % len(nx_graphs))
+    return nx_graphs, labels
 
 @app.command(name='info')
 def info(data_path: Path):
@@ -29,6 +55,8 @@ def info(data_path: Path):
 @app.command(name='GNNExplainer')
 def gnn_explainer(dataset_name: str, experiment_name: str,
                   epochs: int, data_path: Path, output_dir: Path):
+
+    check_path(output_dir)
 
     dataset_name = dataset_name.lower()
 
@@ -61,17 +89,25 @@ def gnn_explainer(dataset_name: str, experiment_name: str,
 
 
         labels = {} # TODO: extract labels the right way
-        #     labels = {
-        #         i: Elements(e).name
-        #         for i, e in enumerate([x.tolist().index(1) for x in mol.x.numpy()])
-        #     }
+        if dataset_name == 'tox21':
+            labels = {
+                i: Elements(e).name
+                for i, e in enumerate([x.tolist().index(1) for x in data.x.numpy()])
+            }
+        elif dataset_name == 'esol':
+            rdkit_mol = Chem.MolFromSmiles(smiles)
 
-        explainer.visualize_subgraph(mol.edge_index, edge_mask,
-                                 len(mol.x), labels=labels)
+            labels = {
+                i: s
+                for i, s in enumerate([x.GetSymbol() for x in rdkit_mol.GetAtoms()])
+            }
+
+        explainer.visualize_subgraph(data.edge_index, edge_mask,
+                                 len(data.x), labels=labels)
 
 
         plt.axis('off')
-        plt.savefig(f"{output_dir}{i}.expl.svg" + "." + str(i) + ".expl.svg",
+        plt.savefig(f"{output_dir}/{i}.expl.svg",
                     bbox_inches='tight',
                     transparent=True)
         plt.close()
@@ -123,7 +159,7 @@ def linear_model(data_path: Path, num_input: int,
         print(f"Feature {i} = {value}")
 
 
-@app.command
+@app.command(name='contrast')
 def contrast(dataset_path: Path,
              embedding_path: Path,
              output_path: Path,

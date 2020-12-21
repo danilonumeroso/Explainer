@@ -1,82 +1,89 @@
 import torch
-import torch.nn.functional as F
 import os
 import os.path as osp
 import json
+import typer
 
 from models.encoder import GCNN
-from config.encoder import Args
 from utils import preprocess, get_dgn, train_cycle_classifier, train_cycle_regressor
 
-args = Args()
 
-torch.manual_seed(args.seed)
+def main(dataset_name: str, experiment_name: str,
+         lr: float, hidden_size: int, batch_size: int,
+         dropout: float, epochs:int, seed: int):
 
-BasePath = './runs/' + args.dataset  + '/' + args.experiment_name
-if not osp.exists(BasePath):
-    os.makedirs(BasePath + "/ckpt")
-    os.makedirs(BasePath + "/plots")
-    os.makedirs(BasePath + "/splits")
-    os.makedirs(BasePath + "/meg_output")
-else:
-    import shutil
-    shutil.rmtree(BasePath + "/plots", ignore_errors=True)
-    os.makedirs(BasePath + "/plots")
+    torch.manual_seed(seed)
 
+    dataset_name = dataset_name.lower()
 
-train_loader, val_loader, test_loader, *extra = preprocess(args.dataset, args)
-train_ds, val_ds, test_ds, num_features, num_classes = extra
-
-len_train = len(train_ds)
-len_val = len(val_ds)
-len_test = len(test_ds)
-
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
-model = GCNN(
-    num_input=num_features,
-    num_hidden=args.hidden_size,
-    num_output=num_classes,
-    dropout=args.dropout
-).to(device)
-
-with open(BasePath + '/hyperparams.json', 'w') as outfile:
-    json.dump({'num_input': num_features,
-               'num_hidden': args.hidden_size,
-               'num_output': num_classes,
-               'dropout': args.dropout,
-               'seed': args.seed}, outfile)
-
-optimizer = args.optimizer(
-    model.parameters(),
-    lr=args.lr
-)
+    base_path = './runs/' + dataset_name  + '/' + experiment_name
+    if not osp.exists(base_path):
+        os.makedirs(base_path + "/ckpt")
+        os.makedirs(base_path + "/plots")
+        os.makedirs(base_path + "/splits")
+        os.makedirs(base_path + "/meg_output")
+    else:
+        import shutil
+        shutil.rmtree(base_path + "/plots", ignore_errors=True)
+        os.makedirs(base_path + "/plots")
 
 
-if args.dataset.lower() in ['tox21', 'cycliq', 'cycliq-multi']:
-    train_cycle_classifier(task=args.dataset.lower(),
-                           train_loader=train_loader,
-                           val_loader=val_loader,
-                           test_loader=test_loader,
-                           len_train=len_train,
-                           len_val=len_val,
-                           len_test=len_test,
-                           model=model,
-                           optimizer=optimizer,
-                           device=device,
-                           base_path=BasePath,
-                           epochs=args.epochs)
+    train_loader, val_loader, test_loader, *extra = preprocess(dataset_name, experiment_name, batch_size)
+    train_ds, val_ds, test_ds, num_features, num_classes = extra
 
-elif args.dataset.lower() in ['esol']:
-    train_cycle_regressor(task=args.dataset.lower(),
-                          train_loader=train_loader,
-                          val_loader=val_loader,
-                          test_loader=test_loader,
-                          len_train=len_train,
-                          len_val=len_val,
-                          len_test=len_test,
-                          model=model,
-                          optimizer=optimizer,
-                          device=device,
-                          base_path=BasePath,
-                          epochs=args.epochs)
+    len_train = len(train_ds)
+    len_val = len(val_ds)
+    len_test = len(test_ds)
+
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+    model = GCNN(
+        num_input=num_features,
+        num_hidden=hidden_size,
+        num_output=num_classes,
+        dropout=dropout
+    ).to(device)
+
+    with open(base_path + '/hyperparams.json', 'w') as outfile:
+        json.dump({'num_input': num_features,
+                   'num_hidden': hidden_size,
+                   'num_output': num_classes,
+                   'dropout': dropout,
+                   'seed': seed}, outfile)
+
+    optimizer = torch.optim.Adam(
+        model.parameters(),
+        lr=lr
+    )
+
+
+    if dataset_name.lower() in ['tox21', 'cycliq', 'cycliq-multi']:
+        train_cycle_classifier(task=dataset_name.lower(),
+                               train_loader=train_loader,
+                               val_loader=val_loader,
+                               test_loader=test_loader,
+                               len_train=len_train,
+                               len_val=len_val,
+                               len_test=len_test,
+                               model=model,
+                               optimizer=optimizer,
+                               device=device,
+                               base_path=base_path,
+                               epochs=epochs)
+
+    elif dataset_name.lower() in ['esol']:
+        train_cycle_regressor(task=dataset_name.lower(),
+                              train_loader=train_loader,
+                              val_loader=val_loader,
+                              test_loader=test_loader,
+                              len_train=len_train,
+                              len_val=len_val,
+                              len_test=len_test,
+                              model=model,
+                              optimizer=optimizer,
+                              device=device,
+                              base_path=base_path,
+                              epochs=epochs)
+
+if __name__ == '__main__':
+    typer.run(main)

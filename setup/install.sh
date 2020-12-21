@@ -12,6 +12,8 @@ conda install rdkit -c rdkit -y
 conda install tensorboard -y
 conda install -c conda-forge typer -y
 
+python -m pip install geomloss
+
 python -m pip install torch==${TORCH_VERSION}+${CUDA_VERSION} torchvision==0.7.0+${CUDA_VERSION} -f https://download.pytorch.org/whl/torch_stable.html
 
 # PyTorch Geometric dependencies

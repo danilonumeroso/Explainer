@@ -1,17 +1,12 @@
-import numpy as np
 import sys
 import os
 import torch
-import torch_geometric
 
 from rdkit import Chem
-from rdkit import DataStructs
-from rdkit.Chem import AllChem
-from rdkit.Chem import RDConfig
+from rdkit.Chem import AllChem, RDConfig
+from enum import Enum
 from torch_geometric.data import Data
-from config.explainer import Args, Elements\
-    , Edges, EdgesToRDKit, Path
-from torch_geometric.datasets.molecule_net import x_map, e_map
+from torch_geometric.datasets.molecule_net import e_map as e_map_esol, x_map as x_map_esol
 from config.explainer import Args
 
 sys.path.append(os.path.join(RDConfig.RDContribDir, "SA_Score"))
@@ -39,7 +34,7 @@ def atom_valences(atom_types):
     ]
 
 def check_molecule_validity(mol, transform):
-    if type(mol) == torch_geometric.data.Data:
+    if type(mol) == Data:
         mol = transform(mol)
 
     return Chem.SanitizeMol(mol, catchErrors=True) == Chem.SANITIZE_NONE
@@ -51,7 +46,7 @@ def mol_to_tox21_pyg(molecule):
 
     X = torch.nn.functional.one_hot(
         torch.tensor([
-            Elements[atom.GetSymbol()].value
+            x_map_tox21[atom.GetSymbol()].value
             for atom in molecule.GetAtoms()
         ]),
         num_classes=53
@@ -67,10 +62,10 @@ def mol_to_tox21_pyg(molecule):
 
     edge_attr = torch.nn.functional.one_hot(
         torch.tensor([
-            Edges(bond.GetBondType())
+            e_map_tox21(bond.GetBondType())
             for bond in molecule.GetBonds()
         ] + [
-            Edges(bond.GetBondType())
+            e_map_tox21(bond.GetBondType())
             for bond in molecule.GetBonds()
         ]),
         num_classes=4
@@ -88,17 +83,17 @@ def mol_to_esol_pyg(mol):
     xs = []
     for atom in mol.GetAtoms():
         x = []
-        x.append(x_map['atomic_num'].index(atom.GetAtomicNum()))
-        x.append(x_map['chirality'].index(str(atom.GetChiralTag())))
-        x.append(x_map['degree'].index(atom.GetTotalDegree()))
-        x.append(x_map['formal_charge'].index(atom.GetFormalCharge()))
-        x.append(x_map['num_hs'].index(atom.GetTotalNumHs()))
-        x.append(x_map['num_radical_electrons'].index(
+        x.append(x_map_tox21['atomic_num'].index(atom.GetAtomicNum()))
+        x.append(x_map_tox21['chirality'].index(str(atom.GetChiralTag())))
+        x.append(x_map_tox21['degree'].index(atom.GetTotalDegree()))
+        x.append(x_map_tox21['formal_charge'].index(atom.GetFormalCharge()))
+        x.append(x_map_tox21['num_hs'].index(atom.GetTotalNumHs()))
+        x.append(x_map_tox21['num_radical_electrons'].index(
             atom.GetNumRadicalElectrons()))
-        x.append(x_map['hybridization'].index(
+        x.append(x_map_tox21['hybridization'].index(
             str(atom.GetHybridization())))
-        x.append(x_map['is_aromatic'].index(atom.GetIsAromatic()))
-        x.append(x_map['is_in_ring'].index(atom.IsInRing()))
+        x.append(x_map_tox21['is_aromatic'].index(atom.GetIsAromatic()))
+        x.append(x_map_tox21['is_in_ring'].index(atom.IsInRing()))
         xs.append(x)
 
         x = torch.tensor(xs, dtype=torch.float).view(-1, 9)
@@ -109,9 +104,9 @@ def mol_to_esol_pyg(mol):
         j = bond.GetEndAtomIdx()
 
         e = []
-        e.append(e_map['bond_type'].index(str(bond.GetBondType())))
-        e.append(e_map['stereo'].index(str(bond.GetStereo())))
-        e.append(e_map['is_conjugated'].index(bond.GetIsConjugated()))
+        e.append(e_map_esol['bond_type'].index(str(bond.GetBondType())))
+        e.append(e_map_esol['stereo'].index(str(bond.GetStereo())))
+        e.append(e_map_esol['is_conjugated'].index(bond.GetIsConjugated()))
 
         edge_indices += [[i, j], [j, i]]
         edge_attrs += [e, e]
@@ -135,17 +130,17 @@ def get_dgn(dataset, experiment):
     from models.encoder.GCNN import GCNN
     import json
 
-    BasePath = 'runs/' + dataset.lower() + "/" + experiment
+    base_path = 'runs/' + dataset.lower() + "/" + experiment
 
     params = None
-    with open(BasePath + '/hyperparams.json') as file:
+    with open(base_path + '/hyperparams.json') as file:
         params = json.load(file)
 
     if dataset.lower() == "tox21":
         m = GCNN(params['num_input'], params['num_hidden'], params['num_output'])
         m.load_state_dict(
             torch.load(
-                BasePath + "/ckpt/GCNN.pth",
+                base_path + "/ckpt/GCNN.pth",
                 map_location=torch.device('cpu')
             )
         )
@@ -156,7 +151,7 @@ def get_dgn(dataset, experiment):
         m = GCNN(params['num_input'], params['num_hidden'], params['num_output'])
         m.load_state_dict(
             torch.load(
-                BasePath + "/ckpt/GCNN.pth",
+                base_path + "/ckpt/GCNN.pth",
                 map_location=torch.device('cpu')
             ),
 
@@ -170,7 +165,7 @@ def pyg_to_mol_tox21(pyg_mol):
 
     X = pyg_mol.x.numpy().tolist()
     X = [
-        Chem.Atom(Elements(x.index(1)).name)
+        Chem.Atom(x_map_tox21(x.index(1)).name)
         for x in X
     ]
 
@@ -183,7 +178,7 @@ def pyg_to_mol_tox21(pyg_mol):
         u = u.item()
         v = v.item()
         attr = attr.numpy().tolist()
-        attr = EdgesToRDKit(attr.index(1))
+        attr = e_map_tox21(attr.index(1), reverse=True)
 
         if mol.GetBondBetweenAtoms(u, v):
             continue
@@ -219,3 +214,84 @@ def pyg_to_mol_esol(pyg_mol):
         mol.AddBond(u, v, Chem.BondType.values[attr])
 
     return mol
+
+
+def e_map_tox21(bond_type, reverse=False):
+
+    if not reverse:
+        if bond_type == Chem.BondType.SINGLE:
+            return 0
+        elif bond_type == Chem.BondType.DOUBLE:
+            return 1
+        elif bond_type == Chem.BondType.AROMATIC:
+            return 2
+        elif bond_type == Chem.BondType.TRIPLE:
+            return 3
+        else:
+            raise Exception("No bond type found")
+
+    if bond_type == 0:
+        return Chem.BondType.SINGLE
+    elif bond_type == 1:
+        return Chem.BondType.DOUBLE
+    elif bond_type == 2:
+        return Chem.BondType.AROMATIC
+    elif bond_type == 3:
+        return Chem.BondType.TRIPLE
+    else:
+        raise Exception("No bond type found")
+
+class x_map_tox21(Enum):
+    O = 0
+    C = 1
+    N = 2
+    F = 3
+    Cl = 4
+    S = 5
+    Br = 6
+    Si = 7
+    Na = 8
+    I = 9
+    Hg = 10
+    B = 11
+    K = 12
+    P = 13
+    Au = 14
+    Cr = 15
+    Sn = 16
+    Ca = 17
+    Cd = 18
+    Zn = 19
+    V = 20
+    As = 21
+    Li = 22
+    Cu = 23
+    Co = 24
+    Ag = 25
+    Se = 26
+    Pt = 27
+    Al = 28
+    Bi = 29
+    Sb = 30
+    Ba = 31
+    Fe = 32
+    H = 33
+    Ti = 34
+    Tl = 35
+    Sr = 36
+    In = 37
+    Dy = 38
+    Ni = 39
+    Be = 40
+    Mg = 41
+    Nd = 42
+    Pd = 43
+    Mn = 44
+    Zr = 45
+    Pb = 46
+    Yb = 47
+    Mo = 48
+    Ge = 49
+    Ru = 50
+    Eu = 51
+    Sc = 52

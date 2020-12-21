@@ -8,10 +8,10 @@ import utils
 import networkx as nx
 
 from models.explainer import CF_Tox21, NCF_Tox21, Agent, CF_Esol, NCF_Esol
-from config.explainer import Args, Path, Elements
+from config.explainer import Args
 from torch.utils.tensorboard import SummaryWriter
 from rdkit import Chem
-from utils import SortedQueue, morgan_bit_fingerprint, get_split, get_dgn, mol_to_smiles
+from utils import SortedQueue, morgan_bit_fingerprint, get_split, get_dgn, mol_to_smiles, x_map_tox21
 from torch.nn import functional as F
 from torch_geometric.utils import to_networkx
 
@@ -38,7 +38,7 @@ def tox21(general_params):
     print(f'Molecule: {smiles}')
 
     atoms_ = [
-        Elements(e).name
+        x_map_tox21(e).name
         for e in np.unique(
             [x.tolist().index(1) for x in original_molecule.x.numpy()]
         )
@@ -90,7 +90,6 @@ def esol(general_params):
     Hyperparams = Args()
     BasePath = './runs/esol/' + Hyperparams.experiment
     writer = SummaryWriter(BasePath + '/plots')
-    episodes = 0
 
     dataset = get_split('esol', 'test', Hyperparams.experiment)
     original_molecule = dataset[Hyperparams.sample]
@@ -242,10 +241,10 @@ def meg_train(writer, environment, queue, marker, tb_name):
             environment.initialize()
 
 
-def save_results(base_path, queue, quantitative=False):
-    output_dir = base_path + f"/meg_output/{Hyperparams.sample}/"
-    embedding_dir = output_dir + "embeddings"
-    gexf_dir = output_dir + "gexf"
+def save_results(base_path, queue, quantitative=True):
+    output_dir = base_path + f"/meg_output/{Hyperparams.sample}"
+    embedding_dir = output_dir + "/embeddings"
+    gexf_dir = output_dir + "/gexf_data"
 
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
@@ -257,7 +256,7 @@ def save_results(base_path, queue, quantitative=False):
         pyg = molecule.pop('pyg')
         if quantitative:
             g = to_networkx(pyg, to_undirected=True)
-            nx.write_gexf(g, f"/{i}.{molecule['prediction']['class']}.gexf")
+            nx.write_gexf(g, f"{gexf_dir}/{i}.{molecule['prediction']['class']}.gexf")
 
     with open(output_dir + "/data.json", "w") as outf:
         json.dump(queue, outf, indent=2)
@@ -273,4 +272,6 @@ if __name__ == '__main__':
         'allowed_ring_sizes': set(Hyperparams.allowed_ring_sizes),
         'max_steps': Hyperparams.max_steps_per_episode,
     }
+
+
     tox21(params) if Hyperparams.dataset.lower() == 'tox21' else esol(params)
