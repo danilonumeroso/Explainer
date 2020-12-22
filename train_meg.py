@@ -8,9 +8,9 @@ import utils
 import networkx as nx
 import typer
 
-from models.explainer import CF_Tox21, NCF_Tox21, Agent, CF_Esol, NCF_Esol
+from models.explainer import CF_Tox21, NCF_Tox21, Agent, CF_Esol, NCF_Esol, CF_Cycliq, NCF_Cycliq
 from torch.utils.tensorboard import SummaryWriter
-from utils import SortedQueue, morgan_bit_fingerprint, get_split, get_dgn, mol_to_smiles, x_map_tox21, pyg_to_mol_tox21, mol_from_smiles
+from utils import SortedQueue, morgan_bit_fingerprint, get_split, get_dgn, mol_to_smiles, x_map_tox21, pyg_to_mol_tox21, mol_from_smiles, mol_to_tox21_pyg
 from torch.nn import functional as F
 from torch_geometric.utils import to_networkx
 
@@ -67,7 +67,7 @@ def tox21(general_params, **args):
         return morgan_bit_fingerprint(action, args['fp_length'], args['fp_radius']).numpy()
 
     meg_train(writer, action_encoder, args['fp_length'], cf_env, cf_queue, marker="cf", tb_name="tox21", args=args)
-    meg_train(writer, action_encoder, args['fp_length'], ncf_env, ncf_queue, marker="ncf", tb_name="tox_21", args=args)
+    meg_train(writer, action_encoder, args['fp_length'] + 1, ncf_env, ncf_queue, marker="ncf", tb_name="tox_21", args=args)
 
     overall_queue = []
     overall_queue.append({
@@ -80,6 +80,67 @@ def tox21(general_params, **args):
             'output': logits.numpy().tolist(),
             'for_explanation': original_molecule.y.item(),
             'class': original_molecule.y.item()
+        }
+    })
+    overall_queue.extend(cf_queue.data_)
+    overall_queue.extend(ncf_queue.data_)
+
+    save_results(base_path, overall_queue, args)
+
+def cycliq(general_params, **args):
+    base_path = './runs/cycliq/' + args['experiment_name']
+    writer = SummaryWriter(base_path + '/plots')
+
+    dataset = get_split('cycliq', 'test',  args['experiment_name'])
+
+    original_graph = dataset[args['sample']]
+    model_to_explain = get_dgn("cycliq",  args['experiment_name'])
+
+    out, original_encoding = model_to_explain(original_graph.x,
+                                              original_graph.edge_index)
+
+    logits = F.softmax(out, dim=-1).detach().squeeze()
+    pred_class = logits.argmax().item()
+
+    assert pred_class == original_graph.y.item()
+
+    params = {
+        'init_graph': original_graph,
+        'allow_removal': general_params['allow_removal'],
+        'allow_no_modification': general_params['allow_no_modification'],
+        'discount_factor': general_params['discount_factor'],
+        # Task-specific params
+        'original_graph': original_graph,
+        'model_to_explain': model_to_explain,
+        'weight_sim': 0.2,
+        'similarity_measure': 'neural_encoding'
+    }
+
+    N = 20
+    cf_queue = SortedQueue(N, sort_predicate=lambda mol: mol['reward'])
+    cf_env = CF_Cycliq(**params)
+    cf_env.initialize()
+
+    ncf_queue = SortedQueue(N, sort_predicate=lambda mol: mol['reward'])
+    ncf_env = NCF_Cycliq(**params)
+    ncf_env.initialize()
+
+    def action_encoder(action):
+        return model_to_explain(action.x, action.edge_index)[1].numpy()
+
+    meg_train(writer, action_encoder, model_to_explain.num_hidden * 2, cf_env, cf_queue, marker="cf", tb_name="cycliq", args=args)
+    meg_train(writer, action_encoder, model_to_explain.num_hidden * 2, ncf_env, ncf_queue, marker="ncf", tb_name="cycliq", args=args)
+
+    overall_queue = []
+    overall_queue.append({
+        'pyg': original_graph,
+        'marker': 'og',
+        'encoding': original_encoding.numpy(),
+        'prediction': {
+            'type': 'bin_classification',
+            'output': logits.numpy().tolist(),
+            'for_explanation': original_graph.y.item(),
+            'class': original_graph.y.item()
         }
     })
     overall_queue.extend(cf_queue.data_)
@@ -124,6 +185,7 @@ def esol(general_params, **args):
     ncf_env = NCF_Esol(**params)
     ncf_env.initialize()
 
+
     def action_encoder(action):
         return morgan_bit_fingerprint(action, args['fp_length'], args['fp_radius']).numpy()
 
@@ -162,10 +224,7 @@ def meg_train(writer, action_encoder, n_input, environment, queue, marker, tb_na
 
         observations = np.vstack(
             [
-                np.append(
-                    action_encoder(action),
-                    steps_left
-                )
+                np.append(action_encoder(action), steps_left)
                 for action in valid_actions
             ]
         )
@@ -190,11 +249,8 @@ def meg_train(writer, action_encoder, n_input, environment, queue, marker, tb_na
 
         action_embeddings = np.vstack(
             [
-                np.append(
-                    action_encoder(act),
-                    steps_left,
-                )
-                for act in environment.get_valid_actions()
+                np.append(action_encoder(action), steps_left)
+                for action in environment.get_valid_actions()
             ]
         )
 
@@ -283,6 +339,8 @@ def main(dataset: str,
         meg = tox21
     elif dataset == 'esol':
         meg = esol
+    elif dataset == 'cycliq':
+        meg = cycliq
 
     meg(general_params,
         experiment_name=experiment_name,

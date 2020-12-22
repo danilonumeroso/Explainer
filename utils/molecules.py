@@ -122,34 +122,23 @@ def get_dgn(dataset, experiment):
     import json
 
     base_path = 'runs/' + dataset.lower() + "/" + experiment
-
     params = None
+
     with open(base_path + '/hyperparams.json') as file:
         params = json.load(file)
 
-    if dataset.lower() == "tox21":
-        m = GCNN(params['num_input'], params['num_hidden'], params['num_output'])
-        m.load_state_dict(
-            torch.load(
-                base_path + "/ckpt/GCNN.pth",
-                map_location=torch.device('cpu')
-            )
+    m = GCNN(params['num_input'],
+             params['num_hidden'],
+             params['num_output'])
+
+    m.load_state_dict(
+        torch.load(
+            base_path + "/ckpt/GCNN.pth",
+            map_location=torch.device('cpu')
         )
-        m.eval()
-        return m
-
-    elif dataset.lower() == "esol":
-        m = GCNN(params['num_input'], params['num_hidden'], params['num_output'])
-        m.load_state_dict(
-            torch.load(
-                base_path + "/ckpt/GCNN.pth",
-                map_location=torch.device('cpu')
-            ),
-
-        )
-        m.eval()
-        return m
-
+    )
+    m.eval()
+    return m
 
 def pyg_to_mol_tox21(pyg_mol):
     mol = Chem.RWMol()

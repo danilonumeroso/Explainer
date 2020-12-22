@@ -1,6 +1,5 @@
 import torch
 import random
-import glob
 import os
 import os.path as osp
 
@@ -8,25 +7,25 @@ from torch_geometric.data import DataLoader, InMemoryDataset
 from torch.nn import functional as F
 from utils.molecules import check_molecule_validity, pyg_to_mol_tox21, pyg_to_mol_esol, mol_from_smiles, mol_to_smiles, mol_to_esol_pyg
 from torch_geometric.datasets import TUDataset, MoleculeNet
-from torch_geometric.io.tu import split, read_file, cat
-from torch_geometric.utils import remove_self_loops
 from torch_sparse import coalesce
 from torch_geometric.data import Data
 from torch_geometric.datasets.molecule_net import x_map, e_map
+from utils.cycliq import CYCLIQ
 
-def pad(sample, n_pad):
+
+def pre_transform(sample, n_pad):
+    sample.x = F.pad(sample.x, (0,n_pad), "constant")
+    # mol = mol_from_smiles(mol_to_smiles(pyg_to_mol_tox21(sample)))
+    # sample = mol_to_esol_pyg(mol)
+    # sample.smiles = mol_to_smiles(sample)
     return sample
 
-
 def get_split(dataset_name, split, experiment):
+
     if dataset_name.lower() == 'tox21':
         ds = TUDataset('data/tox21',
                        name='Tox21_AhR_testing',
-                       pre_transform=lambda sample: pad(sample, 2))
-
-        ds.data, ds.slices = torch.load(f"runs/tox21/{experiment}/splits/{split}.pth")
-
-        return ds
+                       pre_transform=lambda sample: pre_transform(sample, 2))
 
     elif dataset_name.lower() == 'esol':
 
@@ -35,9 +34,17 @@ def get_split(dataset_name, split, experiment):
             name='ESOL'
         )
 
-        ds.data, ds.slices = torch.load(f"runs/esol/{experiment}/splits/{split}.pth")
 
-        return ds
+    elif dataset_name.lower() in ['cycliq', 'cycliq-multi']:
+        ds = CYCLIQ(
+            'data/cycliq',
+            name=dataset_name.upper()
+        )
+
+
+    ds.data, ds.slices = torch.load(f"runs/{dataset_name.lower()}/{experiment}/splits/{split}.pth")
+
+    return ds
 
 
 def preprocess(dataset_name, experiment_name, batch_size):
@@ -45,14 +52,6 @@ def preprocess(dataset_name, experiment_name, batch_size):
 
 
 def _preprocess_tox21(experiment_name, batch_size):
-
-    def pre_transform(sample, n_pad):
-        sample.x = F.pad(sample.x, (0,n_pad), "constant")
-        # mol = mol_from_smiles(mol_to_smiles(pyg_to_mol_tox21(sample)))
-        # sample = mol_to_esol_pyg(mol)
-        # sample.smiles = mol_to_smiles(sample)
-        return sample
-
 
     dataset_tr = TUDataset('data/tox21evo',
                            name='Tox21_AhR_training',
@@ -163,7 +162,6 @@ def _preprocess_cycliq_multi(experiment_name, batch_size):
     return _cycliq("CYCLIQ-MULTI", experiment_name, batch_size)
 
 def _cycliq(name, experiment_name, batch_size):
-    from utils.cycliq import CYCLIQ
 
     dataset = CYCLIQ(
         'data/cycliq',
