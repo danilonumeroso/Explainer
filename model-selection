@@ -14,8 +14,8 @@ do
         do
             SEED=$RANDOM
             EXPERIMENT="${OPT}_LR_${LR}_BS_${BS}_HS_${HS}"
-            echo "python train_dgn.py lr: ${LR} hidden_size: ${HS} batch_size: ${BS} seed: ${SEED}"
-            python train_dgn.py $1 $EXPERIMENT $LR $HS $BS 0.1 100 $SEED
+            echo "lr: ${LR} hidden_size: ${HS} batch_size: ${BS} seed: ${SEED}"
+            python train_dgn.py $1 $EXPERIMENT --lr $LR --hidden_size $HS --batch_size $BS --dropout 0.1 --epochs 100 --seed $SEED
 
             VAL_ACCURACY=`cat runs/$1/$EXPERIMENT/best_result.json | python3 -c "import sys, json; print(json.load(sys.stdin)['val_acc'])"`
 

@@ -10,12 +10,12 @@ from utils import preprocess, get_dgn, train_cycle_classifier, train_cycle_regre
 
 def main(dataset_name: str,
          experiment_name: str = typer.Argument("test"),
-         lr: float = typer.Argument(0.01),
-         hidden_size: int = typer.Argument(32),
-         batch_size: int = typer.Argument(32),
-         dropout: float = typer.Argument(0.1),
-         epochs:int = typer.Argument(50),
-         seed: int = typer.Argument(0)):
+         lr: float = typer.Option(0.01),
+         hidden_size: int = typer.Option(32),
+         batch_size: int = typer.Option(32),
+         dropout: float = typer.Option(0.1),
+         epochs:int = typer.Option(50),
+         seed: int = typer.Option(0)):
 
     torch.manual_seed(seed)
 
@@ -60,7 +60,6 @@ def main(dataset_name: str,
         model.parameters(),
         lr=lr
     )
-
 
     if dataset_name.lower() in ['tox21', 'cycliq', 'cycliq-multi']:
         train_cycle_classifier(task=dataset_name.lower(),

@@ -15,13 +15,16 @@ from utils import get_similarity
 
 def get_valid_actions(graph, allow_removal, allow_no_modification):
   valid_actions = set()
+  N = []
 
   valid_actions.update(_node_addition(graph))
+  N.append(len(valid_actions))
 
-  # valid_actions.update(_edge_addition(graph))
+  if allow_removal:
+    valid_actions.update(_edge_removal(graph))
+    N.append(len(valid_actions) - N[0])
 
-  # if allow_removal:
-    # valid_actions.update(_edge_removal(graph))
+  valid_actions.update(_edge_addition(graph, max_action=sum(N)//len(N)))
 
   if allow_no_modification:
     valid_actions.add(graph.clone())
@@ -45,25 +48,25 @@ def _node_addition(graph):
   return actions
 
 
-def _edge_addition(graph, p=.5):
+def _edge_addition(graph, max_action=1000):
   actions = set()
   num_nodes, _ = graph.x.size()
-  g = to_networkx(graph)
+  g = to_networkx(graph, to_undirected=True)
+  edges = []
 
-  for i in range(num_nodes):
-    for j in range(i+1, num_nodes):
 
-      if (i, j) in g.edges:
-        continue
+  edge_set = set(itertools.combinations(range(num_nodes), 2))
+  edge_set = edge_set.difference(set(g.edges))
+  edge_set = random.sample(edge_set, max_action)
 
-      if random.uniform(0,1) < p:
-        continue
+  for (u, v) in edge_set:
+    a = graph.clone()
 
-      a = graph.clone()
-      a.edge_index = to_undirected(
-        torch.cat((a.edge_index, torch.tensor([[i], [j]])), dim=1)
-      )
-      actions.add(a)
+    a.edge_index = to_undirected(
+      torch.cat((a.edge_index, torch.tensor([[u], [v]])), dim=1)
+    )
+
+    actions.add(a)
 
   return actions
 
@@ -192,7 +195,6 @@ class CF_Cycliq(GraphEnvironment):
 
     out, encoding = self.model_to_explain(g.x, g.edge_index)
     out = F.softmax(out, dim=-1).squeeze().detach()
-
 
     sim_score = self.similarity(self.make_encoding(g), self.original_encoding)
     pred_score = out[self.class_to_optimise].item()

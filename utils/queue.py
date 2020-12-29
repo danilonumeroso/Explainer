@@ -8,13 +8,13 @@ class SortedQueue:
         self.data_ = []
 
     def contains(self, smiles):
-        return any(d['smiles'] == smiles for d in self.data_)
+        return any(d['id'] == smiles for d in self.data_)
 
     def insert(self, data):
-        assert 'smiles' in data
+        assert 'id' in data
         assert 'reward' in data
 
-        if self.contains(data['smiles']):
+        if self.contains(data['id']):
             return
 
         self.data_.append(data)

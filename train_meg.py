@@ -14,14 +14,12 @@ from utils import SortedQueue, morgan_bit_fingerprint, get_split, get_dgn, mol_t
 from torch.nn import functional as F
 from torch_geometric.utils import to_networkx
 
-def tox21(general_params, **args):
-    base_path = './runs/tox21/' + args['experiment_name']
-    writer = SummaryWriter(base_path + '/plots')
-
-    dataset = get_split('tox21', 'test',  args['experiment_name'])
-
-    original_molecule = dataset[args['sample']]
-    model_to_explain = get_dgn("tox21",  args['experiment_name'])
+def tox21(general_params,
+          base_path,
+          writer,
+          original_molecule,
+          model_to_explain,
+          **args):
 
     out, original_encoding = model_to_explain(original_molecule.x,
                                               original_molecule.edge_index)
@@ -54,7 +52,7 @@ def tox21(general_params, **args):
         'similarity_measure': 'combined'
     }
 
-    N = 20
+    N = 10
     cf_queue = SortedQueue(N, sort_predicate=lambda mol: mol['reward'])
     cf_env = CF_Tox21(**params)
     cf_env.initialize()
@@ -66,8 +64,24 @@ def tox21(general_params, **args):
     def action_encoder(action):
         return morgan_bit_fingerprint(action, args['fp_length'], args['fp_radius']).numpy()
 
-    meg_train(writer, action_encoder, args['fp_length'], cf_env, cf_queue, marker="cf", tb_name="tox21", args=args)
-    meg_train(writer, action_encoder, args['fp_length'] + 1, ncf_env, ncf_queue, marker="ncf", tb_name="tox_21", args=args)
+    meg_train(writer,
+              action_encoder,
+              args['fp_length'],
+              cf_env,
+              cf_queue,
+              marker="cf",
+              tb_name="tox21",
+              id_function=lambda action: action,
+              args=args)
+    meg_train(writer,
+              action_encoder,
+              args['fp_length'],
+              ncf_env,
+              ncf_queue,
+              marker="ncf",
+              tb_name="tox_21",
+              id_function=lambda action: action,
+              args=args)
 
     overall_queue = []
     overall_queue.append({
@@ -87,14 +101,12 @@ def tox21(general_params, **args):
 
     save_results(base_path, overall_queue, args)
 
-def cycliq(general_params, **args):
-    base_path = './runs/cycliq/' + args['experiment_name']
-    writer = SummaryWriter(base_path + '/plots')
-
-    dataset = get_split('cycliq', 'test',  args['experiment_name'])
-
-    original_graph = dataset[args['sample']]
-    model_to_explain = get_dgn("cycliq",  args['experiment_name'])
+def cycliq(general_params,
+           base_path,
+           writer,
+           original_graph,
+           model_to_explain,
+           **args):
 
     out, original_encoding = model_to_explain(original_graph.x,
                                               original_graph.edge_index)
@@ -109,6 +121,7 @@ def cycliq(general_params, **args):
         'allow_removal': general_params['allow_removal'],
         'allow_no_modification': general_params['allow_no_modification'],
         'discount_factor': general_params['discount_factor'],
+        'max_steps': general_params['max_steps'],
         # Task-specific params
         'original_graph': original_graph,
         'model_to_explain': model_to_explain,
@@ -116,7 +129,7 @@ def cycliq(general_params, **args):
         'similarity_measure': 'neural_encoding'
     }
 
-    N = 20
+    N = 10
     cf_queue = SortedQueue(N, sort_predicate=lambda mol: mol['reward'])
     cf_env = CF_Cycliq(**params)
     cf_env.initialize()
@@ -128,8 +141,24 @@ def cycliq(general_params, **args):
     def action_encoder(action):
         return model_to_explain(action.x, action.edge_index)[1].numpy()
 
-    meg_train(writer, action_encoder, model_to_explain.num_hidden * 2, cf_env, cf_queue, marker="cf", tb_name="cycliq", args=args)
-    meg_train(writer, action_encoder, model_to_explain.num_hidden * 2, ncf_env, ncf_queue, marker="ncf", tb_name="cycliq", args=args)
+    meg_train(writer,
+              action_encoder,
+              model_to_explain.num_hidden * 2,
+              cf_env,
+              cf_queue,
+              marker="cf",
+              tb_name="cycliq",
+              id_function=lambda action: hash(map(tuple, action.edge_index)),
+              args=args)
+    meg_train(writer,
+              action_encoder,
+              model_to_explain.num_hidden * 2,
+              ncf_env,
+              ncf_queue,
+              marker="ncf",
+              tb_name="cycliq",
+              id_function=lambda action: hash(map(tuple, action.edge_index)),
+              args=args)
 
     overall_queue = []
     overall_queue.append({
@@ -146,16 +175,15 @@ def cycliq(general_params, **args):
     overall_queue.extend(cf_queue.data_)
     overall_queue.extend(ncf_queue.data_)
 
-    save_results(base_path, overall_queue, args)
+    save_results(base_path, overall_queue, args, quantitative=True)
 
-def esol(general_params, **args):
-    base_path = './runs/esol/' +  args['experiment_name']
-    writer = SummaryWriter(base_path + '/plots')
-
-    dataset = get_split('esol', 'test',  args['experiment_name'])
-    original_molecule = dataset[args['sample']]
+def esol(general_params,
+         base_path,
+         writer,
+         original_molecule,
+         model_to_explain,
+         **args):
     original_molecule.x = original_molecule.x.float()
-    model_to_explain = get_dgn("esol",  args['experiment_name'])
 
     og_prediction, original_encoding = model_to_explain(original_molecule.x, original_molecule.edge_index)
     print(f'Molecule: {original_molecule.smiles}')
@@ -176,7 +204,7 @@ def esol(general_params, **args):
         'similarity_measure': 'combined',
     }
 
-    N = 20
+    N = 10
     cf_queue = SortedQueue(N, sort_predicate=lambda mol: mol['reward'])
     cf_env = CF_Esol(**params)
     cf_env.initialize()
@@ -189,8 +217,23 @@ def esol(general_params, **args):
     def action_encoder(action):
         return morgan_bit_fingerprint(action, args['fp_length'], args['fp_radius']).numpy()
 
-    meg_train(writer, action_encoder, args['fp_length'], cf_env, cf_queue, marker="cf", tb_name="esol", args=args)
-    meg_train(writer, action_encoder, args['fp_length'], ncf_env, ncf_queue, marker="ncf", tb_name="esol", args=args)
+    meg_train(writer,
+              action_encoder,
+              args['fp_length'],
+              cf_env,
+              cf_queue,
+              marker="cf",
+              tb_name="esol",
+              id_function=lambda action: action,
+              args=args)
+    meg_train(writer,
+              action_encoder,
+              args['fp_length'],
+              ncf_env, ncf_queue,
+              marker="ncf",
+              tb_name="esol",
+              id_function=lambda action: action,
+              args=args)
 
     overall_queue = []
     overall_queue.append({
@@ -209,7 +252,15 @@ def esol(general_params, **args):
 
     save_results(base_path, overall_queue, args)
 
-def meg_train(writer, action_encoder, n_input, environment, queue, marker, tb_name, args):
+def meg_train(writer,
+              action_encoder,
+              n_input,
+              environment,
+              queue,
+              marker,
+              tb_name,
+              id_function,
+              args):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     agent = Agent(n_input + 1, 1, device, args['lr'], args['replay_buffer_size'])
 
@@ -218,7 +269,6 @@ def meg_train(writer, action_encoder, n_input, environment, queue, marker, tb_na
     episode = 0
 
     for it in range(args['epochs']):
-
         steps_left = args['max_steps_per_episode'] - environment.num_steps_taken
         valid_actions = list(environment.get_valid_actions())
 
@@ -273,11 +323,11 @@ def meg_train(writer, action_encoder, n_input, environment, queue, marker, tb_na
         if done:
             episode += 1
 
-            print(f'Episode {episode}::Final Molecule Reward: {out["reward"]:.6f} (pred: {out["reward_pred"]:.6f}, sim: {out["reward_sim"]:.6f})')
-            print(f'Episode {episode}::Final Molecule: {action}')
+            print(f'({args["sample"]}) Episode {episode}::Final Molecule Reward: {out["reward"]:.6f} (pred: {out["reward_pred"]:.6f}, sim: {out["reward_sim"]:.6f})')
+            print(f'({args["sample"]}) Episode {episode}::Final Molecule: {action}')
             queue.insert({
                 'marker': marker,
-                'smiles': action,
+                'id': id_function(action),
                 **out
             })
 
@@ -303,6 +353,7 @@ def save_results(base_path, queue, args, quantitative=False):
             g = to_networkx(pyg, to_undirected=True)
             nx.write_gexf(g, f"{gexf_dir}/{i}.{molecule['prediction']['class']}.gexf")
 
+
     with open(output_dir + "/data.json", "w") as outf:
         json.dump(queue, outf, indent=2)
 
@@ -319,15 +370,18 @@ def main(dataset: str,
          discount: float = typer.Option(0.9),
          replay_buffer_size: int = typer.Option(10000),
          batch_size: int = typer.Option(1),
-         update_interval: int = typer.Option(1)
+         update_interval: int = typer.Option(1),
+         allow_no_modification: bool = typer.Option(False),
+         allow_removal: bool = typer.Option(True),
+         allow_bonds_between_rings: bool = typer.Option(True)
 ):
 
     general_params = {
         # General-purpose params
         'discount_factor': discount,
-        'allow_removal': True,
-        'allow_no_modification': False,
-        'allow_bonds_between_rings': True,
+        'allow_removal': allow_removal,
+        'allow_no_modification': allow_no_modification,
+        'allow_bonds_between_rings': allow_bonds_between_rings,
         'allowed_ring_sizes': set([5, 6]),
         'max_steps': max_steps_per_episode,
         'fp_len': fp_length,
@@ -342,7 +396,14 @@ def main(dataset: str,
     elif dataset == 'cycliq':
         meg = cycliq
 
+
+    base_path = f'./runs/{dataset.lower()}/{experiment_name}'
+
     meg(general_params,
+        base_path,
+        SummaryWriter(f'{base_path}/plots'),
+        get_split(dataset.lower(), 'test', experiment_name)[sample],
+        model_to_explain=get_dgn(dataset.lower(), experiment_name),
         experiment_name=experiment_name,
         sample=sample,
         epochs=epochs,
