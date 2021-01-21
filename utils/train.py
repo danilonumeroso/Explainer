@@ -126,8 +126,9 @@ def test_regressor(model, loader, len_loader, device):
     return loss_all / len_loader
 
 
-def train_cycle_regressor(task, train_loader, val_loader, test_loader, len_train, len_val, len_test,
-                          model, optimizer, device, base_path, epochs):
+def train_cycle_regressor(task, train_loader, val_loader, test_loader,
+                          len_train, len_val, len_test, model,
+                          optimizer, device, base_path, epochs):
 
     best_acc = (0, 0)
     writer = SummaryWriter(base_path + '/plots')

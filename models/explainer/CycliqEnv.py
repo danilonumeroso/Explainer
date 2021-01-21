@@ -185,7 +185,6 @@ class CF_Cycliq(GraphEnvironment):
 
     self.similarity, self.make_encoding, \
       self.original_encoding = get_similarity(similarity_measure,
-                                              None,
                                               model_to_explain,
                                               original_graph)
 

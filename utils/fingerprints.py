@@ -22,9 +22,13 @@ class Fingerprint:
 
 
 def morgan_bit_fingerprint(molecule, fp_len, fp_rad):
+    m = molecule
     if isinstance(molecule, str):
         molecule = mol_from_smiles(molecule)
 
+    if molecule is None:
+        print(m)
+        input("NOOOOOOOOOOOOOOOOONE")
     fp = AllChem.GetMorganFingerprintAsBitVect(molecule, fp_rad, fp_len)
     return Fingerprint(fp, fp_len)
 

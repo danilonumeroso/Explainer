@@ -24,8 +24,7 @@ class GNNExplainer_(GNNExplainer):
         (N, F), E = x.size(), edge_index.size(1)
 
         std = 0.1
-        self.node_feat_mask = torch.nn.Parameter(torch.randn((N,F)) * 0.1)
-
+        self.node_feat_mask = torch.nn.Parameter(torch.randn((1,F)) * 0.1)
         std = torch.nn.init.calculate_gain('relu') * sqrt(2.0 / (2 * N))
 
         self.edge_mask = torch.nn.Parameter(torch.randn(E//2) * std)
@@ -69,7 +68,7 @@ class GNNExplainer_(GNNExplainer):
 
         # Get the initial prediction.
         prediction = kwargs['prediction']
-        node_feat_mask_enable = False if 'feat_enable' not in kwargs else kwargs['feat_enable']
+        node_feat_mask_enable = False if 'node_feats' not in kwargs else kwargs['node_feats']
 
         self.__set_masks__(x, edge_index)
         self.to(x.device)
@@ -78,7 +77,6 @@ class GNNExplainer_(GNNExplainer):
 
         if node_feat_mask_enable:
             parameters.append(self.node_feat_mask)
-            self.node_feat_mask = None
 
         optimizer = torch.optim.Adam(parameters, lr=self.lr)
 
@@ -110,7 +108,7 @@ class GNNExplainer_(GNNExplainer):
         edge_mask = self.edge_mask.detach().sigmoid()
 
         self.__clear_masks__()
-
+        print("Final Pred:", explaining_prediction)
         return node_feat_mask, edge_mask.repeat(2)
 
     def visualize_subgraph(self, edge_index, edge_mask, num_nodes,
@@ -120,6 +118,8 @@ class GNNExplainer_(GNNExplainer):
 
         if threshold is not None:
             edge_mask = (edge_mask >= threshold).to(torch.float)
+
+        print(edge_mask)
 
         data = Data(edge_index=edge_index, att=edge_mask).to('cpu')
         data.num_nodes = num_nodes

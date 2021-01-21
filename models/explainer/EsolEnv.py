@@ -33,7 +33,6 @@ class CF_Esol(Molecule):
 
         self.similarity, self.make_encoding, \
             self.original_encoding = get_similarity(similarity_measure,
-                                                    lambda x: mol_to_smiles(pyg_to_mol_esol(x)),
                                                     model_to_explain,
                                                     original_molecule,
                                                     fp_len,
@@ -45,7 +44,7 @@ class CF_Esol(Molecule):
         molecule = mol_to_esol_pyg(molecule)
 
         pred, encoding = self.model_to_explain(molecule.x,
-                                        molecule.edge_index)
+                                               molecule.edge_index)
 
         sim = self.similarity(self.make_encoding(molecule), self.original_encoding)
 
@@ -58,7 +57,7 @@ class CF_Esol(Molecule):
 
         return {
             'pyg': molecule,
-            'reward': reward * self.discount_factor ** (self.max_steps - self.num_steps_taken),
+            'reward': reward,
             'reward_pred': loss,
             'reward_gain': gain,
             'reward_sim': sim,

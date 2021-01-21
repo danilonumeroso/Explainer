@@ -30,7 +30,6 @@ class CF_Tox21(Molecule):
 
         self.similarity, self.make_encoding, \
             self.original_encoding = get_similarity(similarity_measure,
-                                                    lambda x: mol_to_smiles(pyg_to_mol_tox21(x)),
                                                     model_to_explain,
                                                     original_molecule,
                                                     fp_len,

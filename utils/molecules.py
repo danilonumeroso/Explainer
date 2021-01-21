@@ -64,7 +64,7 @@ def mol_to_tox21_pyg(molecule):
 
     pyg_mol = Data(x=X, edge_index=E, edge_attr=edge_attr)
     pyg_mol.batch = torch.zeros(X.shape[0]).long()
-
+    pyg_mol.smiles = mol_to_smiles(molecule)
     return pyg_mol
 
 def mol_to_esol_pyg(molecule):
@@ -113,7 +113,7 @@ def mol_to_esol_pyg(molecule):
 
     data = Data(x=x, edge_index=edge_index, edge_attr=edge_attr)
     data.batch = torch.zeros(x.shape[0]).long()
-
+    data.smiles = mol_to_smiles(molecule)
     return data
 
 

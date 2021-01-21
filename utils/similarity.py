@@ -16,12 +16,12 @@ def rescaled_cosine_similarity(molecule_a, molecule_b, S, scale="mean"):
 
     return (value - min_) / (max_ - min_)
 
-def get_similarity(name, transform, model, original_molecule, fp_len=None, fp_rad=None):
+def get_similarity(name, model, original_molecule, fp_len=None, fp_rad=None):
 
     if name == "tanimoto":
         similarity = lambda x, y: tanimoto_similarity(x, y)
 
-        make_encoding = lambda x: mfp(transform(x), fp_len, fp_rad).fp
+        make_encoding = lambda x: mfp(x.smiles, fp_len, fp_rad).fp
         original_encoding = make_encoding(original_molecule)
 
     elif name == "rescaled_neural_encoding":
@@ -39,7 +39,7 @@ def get_similarity(name, transform, model, original_molecule, fp_len=None, fp_ra
     elif name == "combined":
         similarity = lambda x, y: 0.5 * cosine_similarity(x[0], y[0]) + 0.5 * tanimoto_similarity(x[1], y[1])
 
-        make_encoding = lambda x: (model(x.x, x.edge_index)[1], mfp(transform(x), fp_len, fp_rad).fp)
+        make_encoding = lambda x: (model(x.x, x.edge_index)[1], mfp(x.smiles, fp_len, fp_rad).fp)
         original_encoding = make_encoding(original_molecule)
 
     return similarity, make_encoding, original_encoding

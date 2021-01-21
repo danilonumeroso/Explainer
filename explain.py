@@ -23,7 +23,7 @@ app = typer.Typer(add_completion=False)
 
 def check_path(output_path: Path):
     if not output_path.exists():
-        typer.confirm("Output path does not exist, do you want to create it?", abort=True)
+        # typer.confirm("Output path does not exist, do you want to create it?", abort=True)
         output_path.mkdir(parents=True)
 
 
@@ -54,7 +54,13 @@ def info(data_path: Path):
 
 @app.command(name='GNNExplainer')
 def gnn_explainer(dataset_name: str, experiment_name: str,
-                  epochs: int, data_path: Path, output_dir: Path):
+                  epochs: int, data_path: Path, output_dir: Path,
+                  node_feats: bool = typer.Option(False),
+                  edge_size: float = typer.Option(0.005),
+                  node_feat_size: float = typer.Option(1.0),
+                  edge_ent: float = typer.Option(1.0),
+                  node_feat_ent: float = typer.Option(0.1),
+):
 
     check_path(output_dir)
 
@@ -65,7 +71,7 @@ def gnn_explainer(dataset_name: str, experiment_name: str,
         return p1[1 - p2]
 
     def loss_for_regression(p1, p2):
-        return F.l1_loss(p1, p2)
+        return F.l1_loss(p1.squeeze(), torch.as_tensor([p2]).squeeze())
 
     cfs = []
     with open(data_path, 'r') as f:
@@ -81,21 +87,29 @@ def gnn_explainer(dataset_name: str, experiment_name: str,
 
     GCNN = get_dgn(dataset_name, experiment_name)
     explainer = GNNExplainer_(model=GCNN, prediction_loss=loss, epochs=epochs)
+
+    explainer.coeffs['node_feat_ent'] = node_feat_ent
+    explainer.coeffs['node_feat_size'] = node_feat_size
+    explainer.coeffs['edge_size'] = edge_size
+    explainer.coeffs['edge_ent'] = edge_ent
+
+
     dataset = get_split(dataset_name, 'test', experiment_name)
 
     for i, mol in enumerate(cfs):
-        data = transform(mol['smiles'])
-        node_feat_mask, edge_mask = explainer.explain_undirected_graph(data.x, data.edge_index, prediction=mol['prediction']['for_explanation'])
+        data = transform(mol['id'])
+        node_feat_mask, edge_mask = explainer.explain_undirected_graph(data.x,
+                                                                       data.edge_index,
+                                                                       prediction=mol['prediction']['for_explanation'],
+                                                                       node_feats=node_feats)
 
-
-        labels = {} # TODO: extract labels the right way
         if dataset_name == 'tox21':
             labels = {
                 i: x_map_tox21(e).name
                 for i, e in enumerate([x.tolist().index(1) for x in data.x.numpy()])
             }
         elif dataset_name == 'esol':
-            rdkit_mol = Chem.MolFromSmiles(smiles)
+            rdkit_mol = Chem.MolFromSmiles(mol['id'])
 
             labels = {
                 i: s
@@ -103,25 +117,43 @@ def gnn_explainer(dataset_name: str, experiment_name: str,
             }
 
         explainer.visualize_subgraph(data.edge_index, edge_mask,
-                                 len(data.x), labels=labels)
+                                     len(data.x), threshold=0.5,
+                                     labels=labels)
 
 
         plt.axis('off')
-        plt.savefig(f"{output_dir}/{i}.expl.svg",
-                    bbox_inches='tight',
-                    transparent=True)
+        plt.savefig(f"{output_dir}/{i}",
+                    bbox_inches='tight')
+
+        plt.clf()
+        if node_feats:
+            plt.imshow(node_feat_mask.numpy(),
+                       cmap='hot',
+                       interpolation='nearest')
+            plt.colorbar()
+            plt.savefig(f"{output_dir}/{i}.map.png",
+                        bbox_inches='tight',
+                        transparent=True)
+
         plt.close()
 
 
 @app.command(name='linear')
-def linear_model(data_path: Path, num_input: int,
-                 num_output: int, epochs: int):
+def linear_model(data_path: Path,
+                 output_path: Path,
+                 num_input: int,
+                 radius: int,
+                 num_output: int,
+                 epochs: int):
+
+    check_path(output_path)
+
     data = json.load(open(data_path, 'r'))
 
     info = [{} for _ in data]
 
     X = torch.stack([
-        morgan_count_fingerprint(d['smiles'], num_input, 2, bitInfo=info[i]).tensor()
+        morgan_count_fingerprint(d['id'], num_input, radius, bitInfo=info[i]).tensor()
         for i, d in enumerate(data)
     ]).float()
 
@@ -140,37 +172,45 @@ def linear_model(data_path: Path, num_input: int,
 
     optimizer = torch.optim.SGD(interpretable_model.parameters(), lr=1e-2)
 
-    for epoch in range(epochs):
-        optimizer.zero_grad()
+    with typer.progressbar(length=epochs, label="Training...") as progress:
+        for epoch in progress:
+            optimizer.zero_grad()
 
-        out = interpretable_model(X)
-        loss = F.nll_loss(F.log_softmax(out, dim=-1), Y)
-        yp = out.max(dim=1)[1]
+            out = interpretable_model(X)
+            loss = F.nll_loss(F.log_softmax(out, dim=-1), Y)
+            yp = out.max(dim=1)[1]
 
-        loss.backward()
-        optimizer.step()
+            loss.backward()
+            optimizer.step()
 
-        if epoch == 0 or (epoch+1) % 10 == 0:
-            print(f"Loss: {loss.item():.4f}")
-            print(f"Accuracy: {accuracy(Y, yp):.4f}")
-            print(f"Precision: {precision(Y, yp, 2).mean().item():.4f}")
-            print(f"Recall: {recall(Y, yp, 2).mean().item():.4f}")
-            print(f"F1 Score: {f1_score(Y, yp, 2).mean().item():.4f}")
+            progress.label = f"Loss: {loss.item():.4f}, Accuracy: {accuracy(Y, yp):.2f})"
+            if epoch == 0 or (epoch+1) % 10 == 0:
+                pass
+                # print(f"Loss: {loss.item():.4f}")
+                # print(f"Accuracy: {accuracy(Y, yp):.4f}")
+                # print(f"Precision: {precision(Y, yp, 2).mean().item():.4f}")
+                # print(f"Recall: {recall(Y, yp, 2).mean().item():.4f}")
+                # print(f"F1 Score: {f1_score(Y, yp, 2).mean().item():.4f}")
 
     weight = interpretable_model[0].weight
+    torch.set_printoptions(precision=2)
+    np.set_printoptions(precision=2)
+    att_map = F.softmax(weight, dim=-1).detach().numpy()
 
     for c in range(num_output):
         print(f"Feature importance for class {c}:")
-        for k, value in enumerate(weight[c].detach().numpy()):
-            print(f"Feature {k} = {value}")
+        print(att_map[c])
 
     for i, d in enumerate(data):
         c = d['prediction']['class']
-        mol = mol_from_smiles(d['smiles'])
+        mol = mol_from_smiles(d['id'])
 
         j = weight[c].argmax().item()
 
-        print(f"Explanation for {i}: {d['smiles']}")
+        for z in range(len(info[i][j])):
+            open(f"{output_path}/{i}.{z}.expl.svg", "w").write((Draw.DrawMorganBit(mol, j, info[i], whichExample=z, useSVG=True)))
+        Draw.MolToFile(mol, f"{output_path}/{i}.svg")
+        print(f"Explanation for {i}: {d['id']}")
         print(f"info: {info[i][j]}")
         for (atom, radius) in info[i][j]:
             env = Chem.FindAtomEnvironmentOfRadiusN(mol, radius, atom)

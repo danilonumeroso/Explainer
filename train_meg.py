@@ -17,6 +17,8 @@ from torch_geometric.utils import to_networkx
 def tox21(general_params,
           base_path,
           writer,
+          num_counterfactuals,
+          num_non_counterfactuals,
           original_molecule,
           model_to_explain,
           **args):
@@ -29,9 +31,9 @@ def tox21(general_params,
 
     assert pred_class == original_molecule.y.item()
 
-    smiles = mol_to_smiles(pyg_to_mol_tox21(original_molecule))
+    original_molecule.smiles = mol_to_smiles(pyg_to_mol_tox21(original_molecule))
 
-    print(f'Molecule: {smiles}')
+    print(f'Molecule: {original_molecule.smiles}')
 
     atoms_ = [
         x_map_tox21(e).name
@@ -43,7 +45,7 @@ def tox21(general_params,
     params = {
         # General-purpose params
         **general_params,
-        'init_mol': smiles,
+        'init_mol': original_molecule.smiles,
         'atom_types': set(atoms_),
         # Task-specific params
         'original_molecule': original_molecule,
@@ -52,12 +54,11 @@ def tox21(general_params,
         'similarity_measure': 'combined'
     }
 
-    N = 10
-    cf_queue = SortedQueue(N, sort_predicate=lambda mol: mol['reward'])
+    cf_queue = SortedQueue(num_counterfactuals, sort_predicate=lambda mol: mol['reward'])
     cf_env = CF_Tox21(**params)
     cf_env.initialize()
 
-    ncf_queue = SortedQueue(N, sort_predicate=lambda mol: mol['reward'])
+    ncf_queue = SortedQueue(num_non_counterfactuals, sort_predicate=lambda mol: mol['reward'])
     ncf_env = NCF_Tox21(**params)
     ncf_env.initialize()
 
@@ -87,7 +88,7 @@ def tox21(general_params,
     overall_queue.append({
         'pyg': original_molecule,
         'marker': 'og',
-        'smiles': smiles,
+        'smiles': original_molecule.smiles,
         'encoding': original_encoding.numpy(),
         'prediction': {
             'type': 'bin_classification',
@@ -104,6 +105,8 @@ def tox21(general_params,
 def cycliq(general_params,
            base_path,
            writer,
+           num_counterfactuals,
+           num_non_counterfactuals,
            original_graph,
            model_to_explain,
            **args):
@@ -125,41 +128,50 @@ def cycliq(general_params,
         # Task-specific params
         'original_graph': original_graph,
         'model_to_explain': model_to_explain,
-        'weight_sim': 0.2,
+        'weight_sim': 0.4,
         'similarity_measure': 'neural_encoding'
     }
 
-    N = 10
-    cf_queue = SortedQueue(N, sort_predicate=lambda mol: mol['reward'])
+    cf_queue = SortedQueue(num_counterfactuals, sort_predicate=lambda mol: mol['reward'])
     cf_env = CF_Cycliq(**params)
     cf_env.initialize()
 
-    ncf_queue = SortedQueue(N, sort_predicate=lambda mol: mol['reward'])
+    ncf_queue = SortedQueue(num_non_counterfactuals, sort_predicate=lambda mol: mol['reward'])
+
+    params['max_steps'] = 4
+    params['weight_sim'] = 0.6
     ncf_env = NCF_Cycliq(**params)
     ncf_env.initialize()
 
     def action_encoder(action):
         return model_to_explain(action.x, action.edge_index)[1].numpy()
+    try:
+        meg_train(writer,
+                  action_encoder,
+                  model_to_explain.num_hidden * 2,
+                  cf_env,
+                  cf_queue,
+                  marker="cf",
+                  tb_name="cycliq",
+                  id_function=lambda action: hash(map(tuple, action.edge_index)),
+                  args=args)
+    except KeyboardInterrupt:
+        print("MEG Cycle interrupted.")
 
-    meg_train(writer,
-              action_encoder,
-              model_to_explain.num_hidden * 2,
-              cf_env,
-              cf_queue,
-              marker="cf",
-              tb_name="cycliq",
-              id_function=lambda action: hash(map(tuple, action.edge_index)),
-              args=args)
-    meg_train(writer,
-              action_encoder,
-              model_to_explain.num_hidden * 2,
-              ncf_env,
-              ncf_queue,
-              marker="ncf",
-              tb_name="cycliq",
-              id_function=lambda action: hash(map(tuple, action.edge_index)),
-              args=args)
+    try:
+        meg_train(writer,
+                  action_encoder,
+                  model_to_explain.num_hidden * 2,
+                  ncf_env,
+                  ncf_queue,
+                  marker="ncf",
+                  tb_name="cycliq",
+                  id_function=lambda action: hash(map(tuple, action.edge_index)),
+                  args=args)
+    except KeyboardInterrupt:
+        print("MEG Cycle interrupted.")
 
+    print("MEG Save")
     overall_queue = []
     overall_queue.append({
         'pyg': original_graph,
@@ -180,6 +192,8 @@ def cycliq(general_params,
 def esol(general_params,
          base_path,
          writer,
+         num_counterfactuals,
+         num_non_counterfactuals,
          original_molecule,
          model_to_explain,
          **args):
@@ -204,15 +218,13 @@ def esol(general_params,
         'similarity_measure': 'combined',
     }
 
-    N = 10
-    cf_queue = SortedQueue(N, sort_predicate=lambda mol: mol['reward'])
+    cf_queue = SortedQueue(num_counterfactuals, sort_predicate=lambda mol: mol['reward'])
     cf_env = CF_Esol(**params)
     cf_env.initialize()
 
-    ncf_queue = SortedQueue(N, sort_predicate=lambda mol: mol['reward'])
+    ncf_queue = SortedQueue(num_non_counterfactuals, sort_predicate=lambda mol: mol['reward'])
     ncf_env = NCF_Esol(**params)
     ncf_env.initialize()
-
 
     def action_encoder(action):
         return morgan_bit_fingerprint(action, args['fp_length'], args['fp_radius']).numpy()
@@ -261,7 +273,7 @@ def meg_train(writer,
               tb_name,
               id_function,
               args):
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cpu")
     agent = Agent(n_input + 1, 1, device, args['lr'], args['replay_buffer_size'])
 
     eps = 1.0
@@ -282,6 +294,7 @@ def meg_train(writer,
         observations = torch.as_tensor(observations).float()
         a = agent.action_step(observations, eps)
         action = valid_actions[a]
+
         result = environment.step(action)
 
         action_embedding = np.append(
@@ -306,7 +319,7 @@ def meg_train(writer,
 
         agent.replay_buffer.push(
             torch.as_tensor(action_embedding).float(),
-            out['reward'],
+            torch.as_tensor(out['reward']).float(),
             torch.as_tensor(action_embeddings).float(),
             float(result.terminated)
         )
@@ -362,6 +375,8 @@ def main(dataset: str,
          sample: int = typer.Option(0),
          epochs: int = typer.Option(5000),
          max_steps_per_episode: int = typer.Option(1),
+         num_counterfactuals: int = typer.Option(10),
+         num_non_counterfactuals: int = typer.Option(10),
          fp_length: int = typer.Option(1024),
          fp_radius: int = typer.Option(2),
          lr: float = typer.Option(1e-4),
@@ -402,6 +417,8 @@ def main(dataset: str,
     meg(general_params,
         base_path,
         SummaryWriter(f'{base_path}/plots'),
+        num_counterfactuals,
+        num_non_counterfactuals,
         get_split(dataset.lower(), 'test', experiment_name)[sample],
         model_to_explain=get_dgn(dataset.lower(), experiment_name),
         experiment_name=experiment_name,

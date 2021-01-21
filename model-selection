@@ -1,8 +1,12 @@
 #!/bin/bash
 
 echo $BASH_VERSION
-VAL_ACCURACY=0
+VALIDATION_RESULT=0
 BEST=0
+VAL_KEY=val_acc
+# Uncomment the following lines if you're running model selection for esol
+# BEST=10000
+# VAL_KEY=val_error
 
 touch runs/$1/best
 
@@ -13,16 +17,20 @@ do
         for HS in 32 64 128 256
         do
             SEED=$RANDOM
-            EXPERIMENT="${OPT}_LR_${LR}_BS_${BS}_HS_${HS}"
+            EXPERIMENT="$ADAM_{OPT}_LR_${LR}_BS_${BS}_HS_${HS}"
             echo "lr: ${LR} hidden_size: ${HS} batch_size: ${BS} seed: ${SEED}"
-            python train_dgn.py $1 $EXPERIMENT --lr $LR --hidden_size $HS --batch_size $BS --dropout 0.1 --epochs 100 --seed $SEED
+            python train_dgn.py $1 $EXPERIMENT --lr $LR --hidden-size $HS --batch-size $BS --dropout 0.1 --epochs 100 --seed $SEED
 
-            VAL_ACCURACY=`cat runs/$1/$EXPERIMENT/best_result.json | python3 -c "import sys, json; print(json.load(sys.stdin)['val_acc'])"`
 
-            echo $VAL_ACCURACY
-            if echo $VAL_ACCURACY $BEST | awk '{exit !( $1 > $2)}'; then
+            VALIDATION_RESULT=`cat runs/$1/$EXPERIMENT/best_result.json | python3 -c "import sys, json; print(json.load(sys.stdin)['$VAL_KEY'])"`
+
+            echo $VALIDATION_RESULT
+            # Uncomment the following line if you're running model selection for esol
+            # if echo $VALIDATION_RESULT $BEST | awk '{exit !( $1 < $2)}'; then
+            if echo $VALIDATION_RESULT $BEST | awk '{exit !( $1 > $2)}'; then
+
                 echo "NEW BEST"
-                BEST=$VAL_ACCURACY
+                BEST=$VALIDATION_RESULT
                 echo $EXPERIMENT > runs/$1/best
             fi
 

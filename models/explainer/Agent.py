@@ -14,6 +14,7 @@ class Agent(object):
 
         self.device = device
         self.num_input = num_input
+        self.num_output = num_output
 
         self.dqn, self.target_dqn = (
             MolDQN(num_input, num_output).to(self.device),
@@ -29,7 +30,6 @@ class Agent(object):
         )
 
     def action_step(self, observations, epsilon_threshold):
-
         if np.random.uniform() < epsilon_threshold:
             action = np.random.randint(0, observations.shape[0])
         else:
@@ -41,18 +41,13 @@ class Agent(object):
     def train_step(self, batch_size, gamma, polyak):
 
         experience = self.replay_buffer.sample(batch_size)
-
         states_ = torch.stack([S for S, *_ in experience])
 
         next_states_ = [S for *_, S, _ in experience]
-
         q, q_target = self.dqn(states_), torch.stack([self.target_dqn(S).max(dim=0).values.detach() for S in next_states_])
 
-        q, q_target = q.to(self.device), q_target.to(self.device)
-
-        rewards = torch.tensor([R for _, R, *_ in experience]).resize_as_(q).to(self.device)
-
-        dones = torch.tensor([D for *_, D in experience]).resize_as_(q).to(self.device)
+        rewards = torch.stack([R for _, R, *_ in experience]).reshape((1, batch_size)).to(self.device)
+        dones = torch.tensor([D for *_, D in experience]).reshape((1, batch_size)).to(self.device)
 
         q_target = rewards + gamma * (1 - dones) * q_target
         td_target = q - q_target
