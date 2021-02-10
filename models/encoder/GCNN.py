@@ -42,9 +42,11 @@ class GCNN(torch.nn.Module):
         x = F.relu(self.conv3(x, edge_index))
         x3 = torch.cat([gmp(x, batch), gap(x, batch)], dim=1)
 
+        node_embs = x
+
         x = x1 + x2 + x3
 
-        encoding = x
+        graph_emb = x
 
         x = F.relu(self.lin1(x))
         x = F.dropout(x, p=self.p, training=self.training)
@@ -52,4 +54,4 @@ class GCNN(torch.nn.Module):
 
         x = self.lin3(x)
 
-        return x, encoding.detach()
+        return x, (node_embs.detach(), graph_emb.detach())

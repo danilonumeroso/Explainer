@@ -39,7 +39,7 @@ class CF_Tox21(Molecule):
         molecule = mol_from_smiles(self._state)
         molecule = mol_to_tox21_pyg(molecule)
 
-        out, encoding = self.model_to_explain(molecule.x, molecule.edge_index)
+        out, (_, encoding) = self.model_to_explain(molecule.x, molecule.edge_index)
         out = F.softmax(out, dim=-1).squeeze().detach()
 
         sim_score = self.similarity(self.make_encoding(molecule), self.original_encoding)

@@ -5,7 +5,9 @@ import torch
 import os
 import numpy as np
 import networkx as nx
+import random
 
+from enum import Enum
 from tqdm import tqdm as tq
 from geomloss import SamplesLoss
 from torch.nn import Sequential, Linear
@@ -16,16 +18,9 @@ from rdkit import Chem
 from rdkit.Chem import Draw
 from models import GNNExplainer_
 from models.encoder import GCNN
-from utils import get_split, get_dgn, mol_to_tox21_pyg, mol_to_esol_pyg, mol_from_smiles, morgan_count_fingerprint, x_map_tox21, mol_to_smiles
+from utils import get_split, get_dgn, mol_to_tox21_pyg, mol_to_esol_pyg, mol_from_smiles, morgan_count_fingerprint, x_map_tox21, mol_to_smiles, create_path, rdkit_fingerprint, morgan_bit_fingerprint
 
 app = typer.Typer(add_completion=False)
-
-
-def check_path(output_path: Path):
-    if not output_path.exists():
-        # typer.confirm("Output path does not exist, do you want to create it?", abort=True)
-        output_path.mkdir(parents=True)
-
 
 def read_graphs(dataset_path: Path):
     labels = {}
@@ -52,6 +47,28 @@ def info(data_path: Path):
         print('Prediction:', mol['prediction']['output'])
         print('Similarity:', mol['reward_sim'] if 'reward_sim' in mol else '-')
 
+@app.command(name='random')
+def random_explain(dataset_path: Path, output_path: Path):
+    create_path(output_path)
+    nx_graphs, labels = read_graphs(dataset_path)
+
+    def explain(graph_num):
+        g = nx_graphs[graph_num]
+        random_importance = list(range(len(g.edges())))
+        random.shuffle(random_importance)
+
+        N = g.number_of_nodes()
+        masked_adj = np.zeros((N, N))
+        for (u, v), importance in zip(g.edges(), random_importance):
+            u = int(u)
+            v = int(v)
+            masked_adj[u, v] = masked_adj[v, u] = importance
+        return masked_adj
+
+    for gid in tq(nx_graphs):
+        masked_adj = explain(gid)
+        np.save(output_path / ('%s.npy' % gid), masked_adj)
+
 @app.command(name='GNNExplainer')
 def gnn_explainer(dataset_name: str, experiment_name: str,
                   epochs: int, data_path: Path, output_dir: Path,
@@ -62,7 +79,7 @@ def gnn_explainer(dataset_name: str, experiment_name: str,
                   node_feat_ent: float = typer.Option(0.1),
 ):
 
-    check_path(output_dir)
+    create_path(output_dir)
 
     dataset_name = dataset_name.lower()
 
@@ -138,15 +155,22 @@ def gnn_explainer(dataset_name: str, experiment_name: str,
         plt.close()
 
 
+class Mode(str, Enum):
+    regression = 'regression'
+    classification = 'classification'
+
 @app.command(name='linear')
 def linear_model(data_path: Path,
                  output_path: Path,
+                 mode: Mode,
                  num_input: int,
                  radius: int,
                  num_output: int,
-                 epochs: int):
+                 epochs: int,
+                 lr: float = typer.Argument(1e-3),
+                 lambda_: float = typer.Argument(1e-4)):
 
-    check_path(output_path)
+    loss_f = F.mse_loss
 
     data = json.load(open(data_path, 'r'))
 
@@ -158,79 +182,131 @@ def linear_model(data_path: Path,
     ]).float()
 
 
+    # if mode == 'classification':
+    #     Y = torch.stack([
+    #         torch.tensor(d['prediction']['class'])
+    #         for d in data
+    #     ])
+
+    # else:
     Y = torch.stack([
-        torch.tensor(d['prediction']['class'])
+        torch.tensor(d['prediction']['output'])
         for d in data
     ])
 
-    print("X = ", X.numpy())
-    print("Y = ", Y.numpy())
+
+    if mode == 'classification':
+        bin_ = Y.argmax(dim=-1).numpy()
+        assert bin_.mean() in [11/21, 10/21], "Not enough CFS"
+        print("X = ", X.numpy())
+        print("Y = ", bin_)
+    else:
+        print("X = ", X.numpy())
+        print("Y = ", Y.numpy())
+
+    create_path(output_path)
 
     interpretable_model = Sequential(
         Linear(num_input, num_output)
     )
 
-    optimizer = torch.optim.SGD(interpretable_model.parameters(), lr=1e-2)
-
-    with typer.progressbar(length=epochs, label="Training...") as progress:
-        for epoch in progress:
+    optimizer = torch.optim.SGD(interpretable_model.parameters(), lr=lr)
+    EPS=1e-15
+    with tq(total=epochs) as pbar:
+        for epoch in range(epochs):
             optimizer.zero_grad()
 
-            out = interpretable_model(X)
-            loss = F.nll_loss(F.log_softmax(out, dim=-1), Y)
-            yp = out.max(dim=1)[1]
+            out = interpretable_model(X).squeeze()
+            W = torch.cat([w.flatten() for w in interpretable_model[0].parameters()])
+            reg = lambda_ * torch.norm(W, 1)
+            loss = loss_f(out, Y) + reg
+
+            description = f"Loss: {loss.item():.4f}"
+
+            if mode == 'classification':
+                y1 = F.softmax(out, dim=-1).max(dim=1)[1]
+                y2 = F.softmax(Y, dim=-1).max(dim=1)[1]
+
+                acc = accuracy(y1, y2)
+                description = description + f", Accuracy: {acc:.2f})"
+
+                if acc == 1:
+                    break
+            else:
+                acc = loss.item()
 
             loss.backward()
             optimizer.step()
 
-            progress.label = f"Loss: {loss.item():.4f}, Accuracy: {accuracy(Y, yp):.2f})"
-            if epoch == 0 or (epoch+1) % 10 == 0:
-                pass
-                # print(f"Loss: {loss.item():.4f}")
-                # print(f"Accuracy: {accuracy(Y, yp):.4f}")
-                # print(f"Precision: {precision(Y, yp, 2).mean().item():.4f}")
-                # print(f"Recall: {recall(Y, yp, 2).mean().item():.4f}")
-                # print(f"F1 Score: {f1_score(Y, yp, 2).mean().item():.4f}")
+            pbar.update(1)
+            pbar.set_description(description)
+
 
     weight = interpretable_model[0].weight
     torch.set_printoptions(precision=2)
     np.set_printoptions(precision=2)
-    att_map = F.softmax(weight, dim=-1).detach().numpy()
+    w_abs = weight.abs().detach().numpy()
 
     for c in range(num_output):
         print(f"Feature importance for class {c}:")
-        print(att_map[c])
+        print(f"max: {w_abs[c].max()}")
+        print(f"mean: {w_abs[c].mean()}")
+        print(f"std: {w_abs[c].std()}")
+
+    np.save(f"{output_path}/W.npy", weight.detach().numpy())
+    np.save(f"{output_path}/{acc:.2f}.npy", weight.detach().numpy())
 
     for i, d in enumerate(data):
-        c = d['prediction']['class']
+        c = d['prediction']['class'] if mode == 'classification' else 0
         mol = mol_from_smiles(d['id'])
 
         j = weight[c].argmax().item()
+        # h = weight[1-c].argmax().item()
+        h = weight[c].argmin().item()
+        Draw.MolToFile(mol, f"{output_path}/SAMPLE-{i}.svg")
+
+        if j not in info[i]:
+            continue
 
         for z in range(len(info[i][j])):
-            open(f"{output_path}/{i}.{z}.expl.svg", "w").write((Draw.DrawMorganBit(mol, j, info[i], whichExample=z, useSVG=True)))
-        Draw.MolToFile(mol, f"{output_path}/{i}.svg")
-        print(f"Explanation for {i}: {d['id']}")
-        print(f"info: {info[i][j]}")
-        for (atom, radius) in info[i][j]:
-            env = Chem.FindAtomEnvironmentOfRadiusN(mol, radius, atom)
-            map_ = {}
-            fragment = Chem.PathToSubmol(mol, env, atomMap=map_)
-            print(mol_to_smiles(fragment))
+            open(f"{output_path}/SAMPLE-{i}-FEAT-{z}-LABEL-{c}-MAX.expl.svg", "w").write((Draw.DrawMorganBit(mol, j, info[i], whichExample=z, useSVG=True)))
+
+        if h in info[i]:
+            for z in range(len(info[i][h])):
+                open(f"{output_path}/SAMPLE-{i}-FEAT-{z}-LABEL-{c}-MIN.expl.svg", "w").write((Draw.DrawMorganBit(mol, h, info[i], whichExample=z, useSVG=True)))
+
+        np.save(f"{output_path}/SAMPLE-{i}.info.npy", np.array(info[i]))
+        d2d = Draw.rdMolDraw2D.MolDraw2DSVG(300,300)
+        d2d.drawOptions().addAtomIndices = True
+        d2d.DrawMolecule(mol)
+        d2d.FinishDrawing()
+
+        open(f"{output_path}/SAMPLE-{i}-with-indexes.svg", "w").write(d2d.GetDrawingText())
 
 
 @app.command(name='contrast')
 def contrast(dataset_path: Path,
              embedding_path: Path,
              output_path: Path,
+             data_target_path: Path = typer.Argument(None),
+             embedding_target_path: Path = typer.Argument(None),
              loss_str: str = typer.Option('-+s', '--loss'),
              similar_size: int = typer.Option(10),
              distance_str: str = typer.Option('ot', '--distance')):
 
-    check_path(output_path)
+    create_path(output_path)
+
+    if data_target_path == None:
+        data_target_path = dataset_path
+        embedding_target_path = embedding_path
+
+
     nx_graphs, labels = read_graphs(dataset_path)
+    graphs_target, labels_target = read_graphs(data_target_path)
     torch.set_num_threads(1)
     graph_embs = {}
+    target_embs = {}
+
     for name in os.listdir(str(embedding_path)):
         if not name.endswith('npy'):
             continue
@@ -240,8 +316,17 @@ def contrast(dataset_path: Path,
         embs = embs[:last_idx, :]
         graph_embs[graph_num] = embs
 
+    for name in os.listdir(str(embedding_target_path)):
+        if not name.endswith('npy'):
+            continue
+        graph_num = int(name.split('.')[0])
+        embs = np.load(str(embedding_target_path / name))
+        last_idx = len(graphs_target[graph_num].nodes)
+        embs = embs[:last_idx, :]
+        target_embs[graph_num] = embs
+
     def closest(graph_num, dist, size=1, neg_label=None):
-        cur_label = labels[graph_num]
+        cur_label = labels_target[graph_num]
         pos_dists = []
         neg_dists = []
         for i in graph_embs:
@@ -281,20 +366,18 @@ def contrast(dataset_path: Path,
 
     def graph_distance(g1_num, g2_num):
         k = (min(g1_num, g2_num), max(g1_num, g2_num))
-        g1_embs = graph_embs[g1_num]
+        g1_embs = target_embs[g1_num]
         g2_embs = graph_embs[g2_num]
         return distance(torch.Tensor(g1_embs), torch.Tensor(g2_embs)).item()
 
     def explain(graph_num):
-        cur_embs = torch.Tensor(graph_embs[graph_num])
-
+        cur_embs = torch.Tensor(target_embs[graph_num])
         distance = SamplesLoss("sinkhorn", p=1, blur=.01)
 
         positive_ids, negative_ids = closest(graph_num, graph_distance, size=similar_size)
 
         positive_embs = [torch.Tensor(graph_embs[i]) for i in positive_ids]
         negative_embs = [torch.Tensor(graph_embs[i]) for i in negative_ids]
-
         mask = torch.nn.Parameter(torch.zeros(len(cur_embs)))
 
         learning_rate = 1e-1
@@ -330,15 +413,15 @@ def contrast(dataset_path: Path,
             loss.backward()
             optimizer.step()
         node_importance = list(1 - mask.softmax(0).detach().numpy().ravel())
-        N = nx_graphs[graph_num].number_of_nodes()
+        N = graphs_target[graph_num].number_of_nodes()
         masked_adj = np.zeros((N, N))
-        for u, v in nx_graphs[graph_num].edges():
+        for u, v in graphs_target[graph_num].edges():
             u = int(u)
             v = int(v)
             masked_adj[u, v] = masked_adj[v, u] = node_importance[u] + node_importance[v]
         return masked_adj
 
-    for gid in tq(graph_embs):
+    for gid in tq(target_embs):
         masked_adj = explain(gid)
         np.save(output_path / ('%s.npy' % gid), masked_adj)
 

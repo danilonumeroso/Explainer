@@ -13,18 +13,23 @@ from torch_geometric.utils import to_undirected, to_networkx, from_networkx
 from models.explainer.Environment import Result
 from utils import get_similarity
 
-def get_valid_actions(graph, allow_removal, allow_no_modification):
+def get_valid_actions(graph, allow_removal, allow_no_modification, allow_node_addition, allow_edge_addition):
   valid_actions = set()
   N = []
 
-  valid_actions.update(_node_addition(graph))
-  N.append(len(valid_actions))
+  if allow_node_addition:
+    valid_actions.update(_node_addition(graph))
+    N.append(len(valid_actions))
 
   if allow_removal:
     valid_actions.update(_edge_removal(graph))
-    N.append(len(valid_actions) - N[0])
+    try:
+      N.append(len(valid_actions) - N[0])
+    except:
+      pass
 
-  valid_actions.update(_edge_addition(graph, max_action=sum(N)//len(N)))
+  if allow_edge_addition:
+    valid_actions.update(_edge_addition(graph, max_action=sum(N)//max(1,len(N))))
 
   if allow_no_modification:
     valid_actions.add(graph.clone())
@@ -48,7 +53,11 @@ def _node_addition(graph):
   return actions
 
 
-def _edge_addition(graph, max_action=1000):
+def _edge_addition(graph, max_action=50):
+
+  if max_action == 0:
+    max_action = 50
+
   actions = set()
   num_nodes, _ = graph.x.size()
   g = to_networkx(graph, to_undirected=True)
@@ -57,7 +66,7 @@ def _edge_addition(graph, max_action=1000):
 
   edge_set = set(itertools.combinations(range(num_nodes), 2))
   edge_set = edge_set.difference(set(g.edges))
-  edge_set = random.sample(edge_set, max_action)
+  edge_set = random.sample(edge_set, min(max_action, len(edge_set)))
 
   for (u, v) in edge_set:
     a = graph.clone()
@@ -93,6 +102,8 @@ class GraphEnvironment():
                init_graph=None,
                allow_removal=True,
                allow_no_modification=True,
+               allow_node_addition=True,
+               allow_edge_addition=True,
                max_steps=10,
                record_path=False,
                target_fn=None
@@ -103,6 +114,8 @@ class GraphEnvironment():
     self.init_graph = init_graph
     self.allow_removal = allow_removal
     self.allow_no_modification = allow_no_modification
+    self.allow_node_addition = allow_node_addition
+    self.allow_edge_addition = allow_edge_addition
     self.max_steps = max_steps
     self._state = None
     self._valid_actions = []
@@ -136,9 +149,12 @@ class GraphEnvironment():
       state = self._state
 
     self._valid_actions = get_valid_actions(
-        state,
-        allow_removal=self.allow_removal,
-        allow_no_modification=self.allow_no_modification)
+      state,
+      allow_removal=self.allow_removal,
+      allow_no_modification=self.allow_no_modification,
+      allow_edge_addition=self.allow_edge_addition,
+      allow_node_addition=self.allow_node_addition
+    )
     return copy.deepcopy(self._valid_actions)
 
   def _reward(self):
@@ -192,14 +208,12 @@ class CF_Cycliq(GraphEnvironment):
 
     g = self._state.clone()
 
-    out, encoding = self.model_to_explain(g.x, g.edge_index)
+    out, (node_embs, graph_emb) = self.model_to_explain(g.x, g.edge_index)
     out = F.softmax(out, dim=-1).squeeze().detach()
 
     sim_score = self.similarity(self.make_encoding(g), self.original_encoding)
     pred_score = out[self.class_to_optimise].item()
     pred_class = torch.argmax(out).item()
-
-
 
     reward = pred_score * (1 - self.weight_sim) + sim_score * self.weight_sim
 
@@ -208,7 +222,7 @@ class CF_Cycliq(GraphEnvironment):
       'reward': reward * self.discount_factor,
       'reward_pred': pred_score,
       'reward_sim': sim_score,
-      'encoding': encoding.numpy(),
+      'encoding': node_embs.numpy(),
       'prediction': {
         'type': 'bin_classification',
         'output': out.numpy().tolist(),

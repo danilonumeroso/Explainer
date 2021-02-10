@@ -43,8 +43,8 @@ class CF_Esol(Molecule):
         molecule = mol_from_smiles(self._state)
         molecule = mol_to_esol_pyg(molecule)
 
-        pred, encoding = self.model_to_explain(molecule.x,
-                                               molecule.edge_index)
+        pred, (_, encoding) = self.model_to_explain(molecule.x,
+                                                    molecule.edge_index)
 
         sim = self.similarity(self.make_encoding(molecule), self.original_encoding)
 

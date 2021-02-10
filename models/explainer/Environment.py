@@ -307,6 +307,8 @@ class Molecule(object):
                atom_types,
                init_mol=None,
                allow_removal=True,
+               allow_node_addition=True,
+               allow_edge_addition=True,
                allow_no_modification=True,
                allow_bonds_between_rings=True,
                allowed_ring_sizes=None,
@@ -346,6 +348,8 @@ class Molecule(object):
     self.init_mol = init_mol
     self.atom_types = atom_types
     self.allow_removal = allow_removal
+    self.allow_node_addition = allow_node_addition
+    self.allow_edge_addition = allow_edge_addition
     self.allow_no_modification = allow_no_modification
     self.allow_bonds_between_rings = allow_bonds_between_rings
     self.allowed_ring_sizes = allowed_ring_sizes

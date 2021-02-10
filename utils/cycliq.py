@@ -3,8 +3,8 @@ import os.path as osp
 import glob
 
 import torch
-from torch_geometric.data import InMemoryDataset
-from torch_geometric.io.tu import split, read_file, cat
+from torch_geometric.data import InMemoryDataset, Data
+from torch_geometric.io.tu import split, read_file, cat, coalesce
 from torch_geometric.utils import remove_self_loops
 
 class CYCLIQ(InMemoryDataset):

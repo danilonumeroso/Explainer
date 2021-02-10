@@ -23,8 +23,8 @@ def tox21(general_params,
           model_to_explain,
           **args):
 
-    out, original_encoding = model_to_explain(original_molecule.x,
-                                              original_molecule.edge_index)
+    out, (_, original_encoding) = model_to_explain(original_molecule.x,
+                                                   original_molecule.edge_index)
 
     logits = F.softmax(out, dim=-1).detach().squeeze()
     pred_class = logits.argmax().item()
@@ -111,7 +111,7 @@ def cycliq(general_params,
            model_to_explain,
            **args):
 
-    out, original_encoding = model_to_explain(original_graph.x,
+    out, (node_embs, original_encoding) = model_to_explain(original_graph.x,
                                               original_graph.edge_index)
 
     logits = F.softmax(out, dim=-1).detach().squeeze()
@@ -122,6 +122,8 @@ def cycliq(general_params,
     params = {
         'init_graph': original_graph,
         'allow_removal': general_params['allow_removal'],
+        'allow_node_addition': general_params['allow_node_addition'],
+        'allow_edge_addition': general_params['allow_edge_addition'],
         'allow_no_modification': general_params['allow_no_modification'],
         'discount_factor': general_params['discount_factor'],
         'max_steps': general_params['max_steps'],
@@ -137,14 +139,15 @@ def cycliq(general_params,
     cf_env.initialize()
 
     ncf_queue = SortedQueue(num_non_counterfactuals, sort_predicate=lambda mol: mol['reward'])
-
-    params['max_steps'] = 4
+    params['max_steps'] = 1
     params['weight_sim'] = 0.6
+    params['allow_edge_addition'] = True
+    params['allow_removal'] = False
     ncf_env = NCF_Cycliq(**params)
     ncf_env.initialize()
 
     def action_encoder(action):
-        return model_to_explain(action.x, action.edge_index)[1].numpy()
+        return model_to_explain(action.x, action.edge_index)[1][1].numpy()
     try:
         meg_train(writer,
                   action_encoder,
@@ -176,7 +179,7 @@ def cycliq(general_params,
     overall_queue.append({
         'pyg': original_graph,
         'marker': 'og',
-        'encoding': original_encoding.numpy(),
+        'encoding': node_embs.numpy(),
         'prediction': {
             'type': 'bin_classification',
             'output': logits.numpy().tolist(),
@@ -279,8 +282,9 @@ def meg_train(writer,
     eps = 1.0
     batch_losses = []
     episode = 0
+    it = 0
 
-    for it in range(args['epochs']):
+    while episode < args['epochs']:
         steps_left = args['max_steps_per_episode'] - environment.num_steps_taken
         valid_actions = list(environment.get_valid_actions())
 
@@ -333,18 +337,22 @@ def meg_train(writer,
             loss = loss.item()
             batch_losses.append(loss)
 
+        it += 1
+
         if done:
             episode += 1
 
-            print(f'({args["sample"]}) Episode {episode}::Final Molecule Reward: {out["reward"]:.6f} (pred: {out["reward_pred"]:.6f}, sim: {out["reward_sim"]:.6f})')
-            print(f'({args["sample"]}) Episode {episode}::Final Molecule: {action}')
+            print(f'({args["sample"]}) Episode {episode}> Reward = {out["reward"]:.4f} (pred: {out["reward_pred"]:.4f}, sim: {out["reward_sim"]:.4f})')
             queue.insert({
                 'marker': marker,
                 'id': id_function(action),
                 **out
             })
 
-            eps *= 0.9995
+
+            eps *= 0.9987
+            # eps = max(eps, 0.05)
+
             batch_losses = []
             environment.initialize()
 
@@ -388,7 +396,10 @@ def main(dataset: str,
          update_interval: int = typer.Option(1),
          allow_no_modification: bool = typer.Option(False),
          allow_removal: bool = typer.Option(True),
-         allow_bonds_between_rings: bool = typer.Option(True)
+         allow_node_addition: bool = typer.Option(True),
+         allow_edge_addition: bool = typer.Option(True),
+         allow_bonds_between_rings: bool = typer.Option(True),
+         seed: int = typer.Option(0)
 ):
 
     general_params = {
@@ -397,6 +408,8 @@ def main(dataset: str,
         'allow_removal': allow_removal,
         'allow_no_modification': allow_no_modification,
         'allow_bonds_between_rings': allow_bonds_between_rings,
+        'allow_node_addition': allow_node_addition,
+        'allow_edge_addition': allow_edge_addition,
         'allowed_ring_sizes': set([5, 6]),
         'max_steps': max_steps_per_episode,
         'fp_len': fp_length,
@@ -411,6 +424,7 @@ def main(dataset: str,
     elif dataset == 'cycliq':
         meg = cycliq
 
+    torch.manual_seed(seed)
 
     base_path = f'./runs/{dataset.lower()}/{experiment_name}'
 

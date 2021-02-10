@@ -1,5 +1,6 @@
 import numpy as np
 import torch
+from rdkit import Chem
 from rdkit.DataStructs import ConvertToNumpyArray
 from rdkit.Chem import AllChem
 from utils.molecules import mol_from_smiles, mol_to_smiles
@@ -21,15 +22,15 @@ class Fingerprint:
         return torch.as_tensor(self.numpy())
 
 
-def morgan_bit_fingerprint(molecule, fp_len, fp_rad):
+def morgan_bit_fingerprint(molecule, fp_len, fp_rad, bitInfo=None):
     m = molecule
     if isinstance(molecule, str):
         molecule = mol_from_smiles(molecule)
 
     if molecule is None:
         print(m)
-        input("NOOOOOOOOOOOOOOOOONE")
-    fp = AllChem.GetMorganFingerprintAsBitVect(molecule, fp_rad, fp_len)
+
+    fp = AllChem.GetMorganFingerprintAsBitVect(molecule, fp_rad, fp_len, bitInfo=bitInfo)
     return Fingerprint(fp, fp_len)
 
 
@@ -38,4 +39,12 @@ def morgan_count_fingerprint(molecule, fp_len, fp_rad, bitInfo=None):
         molecule = mol_from_smiles(molecule)
 
     fp = AllChem.GetHashedMorganFingerprint(molecule, fp_rad, fp_len, bitInfo=bitInfo)
+    return Fingerprint(fp, fp_len)
+
+
+def rdkit_fingerprint(molecule, fp_len, bitInfo=None):
+    if isinstance(molecule, str):
+        molecule = mol_from_smiles(molecule)
+
+    fp = Chem.RDKFingerprint(molecule, fpSize=fp_len, bitInfo=bitInfo)
     return Fingerprint(fp, fp_len)

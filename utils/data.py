@@ -35,9 +35,9 @@ def get_split(dataset_name, split, experiment):
         )
 
 
-    elif dataset_name.lower() in ['cycliq', 'cycliq-multi']:
+    elif dataset_name.lower() == 'cycliq':
         ds = CYCLIQ(
-            'data/cycliq',
+            'data/cycliq-evo',
             name=dataset_name.upper()
         )
 
@@ -53,15 +53,15 @@ def preprocess(dataset_name, experiment_name, batch_size):
 
 def _preprocess_tox21(experiment_name, batch_size):
 
-    dataset_tr = TUDataset('data/tox21evo',
+    dataset_tr = TUDataset('data/tox21',
                            name='Tox21_AhR_training',
                            pre_transform=lambda sample: pre_transform(sample, 3))
 
-    dataset_vl = TUDataset('data/tox21evo',
+    dataset_vl = TUDataset('data/tox21',
                            name='Tox21_AhR_evaluation',
                            pre_transform=lambda sample: pre_transform(sample, 0))
 
-    dataset_ts = TUDataset('data/tox21evo',
+    dataset_ts = TUDataset('data/tox21',
                            name='Tox21_AhR_testing',
                            pre_transform=lambda sample: pre_transform(sample, 2))
 
@@ -87,6 +87,7 @@ def _preprocess_tox21(experiment_name, batch_size):
     train_data = data_list[n:]
     val_data = data_list[:n]
     test_data = train_data[:n]
+    train_data = train_data[n:]
 
     train = dataset_tr
     val = dataset_vl
@@ -130,6 +131,7 @@ def _preprocess_esol(experiment_name, batch_size):
     train_data = data_list[n:]
     val_data = data_list[:n]
     test_data = train_data[:n]
+    train_data = train_data[n:]
 
     train = dataset
     val = dataset.copy()
@@ -158,19 +160,24 @@ def _preprocess_esol(experiment_name, batch_size):
 def _preprocess_cycliq(experiment_name, batch_size):
     return _cycliq("CYCLIQ", experiment_name, batch_size)
 
-def _preprocess_cycliq_multi(experiment_name, batch_size):
-    return _cycliq("CYCLIQ-MULTI", experiment_name, batch_size)
-
 def _cycliq(name, experiment_name, batch_size):
 
-    dataset = CYCLIQ(
-        'data/cycliq',
-        name=name
+    dataset_tr = CYCLIQ(
+        'data/cycliq-evo',
+        name='CYCLIQ'
+    )
+
+    dataset_ts = CYCLIQ(
+        'data/cycliq-evo',
+        name='CYCLIQTS3'
     )
 
     data_list = (
-        [dataset.get(idx) for idx in range(len(dataset))]
+        [dataset_tr.get(idx) for idx in range(len(dataset_tr))]
     )
+
+    for i, d in enumerate(data_list):
+        d.gexf_id = f"{i+1}.{d.y.item()}.gexf"
 
     random.shuffle(data_list)
 
@@ -178,11 +185,11 @@ def _cycliq(name, experiment_name, batch_size):
 
     train_data = data_list[n:]
     val_data = data_list[:n]
-    test_data = train_data[:n]
+    test_data = [dataset_ts.get(idx) for idx in range(len(dataset_ts))]
 
-    train = dataset
-    val = dataset.copy()
-    test = dataset.copy()
+    train = dataset_tr
+    val = dataset_tr.copy()
+    test = dataset_ts
     train.data, train.slices = train.collate(train_data)
     val.data, val.slices = train.collate(val_data)
     test.data, test.slices = train.collate(test_data)
@@ -206,6 +213,5 @@ def _cycliq(name, experiment_name, batch_size):
 _PREPROCESS = {
     'tox21': _preprocess_tox21,
     'esol': _preprocess_esol,
-    'cycliq': _preprocess_cycliq,
-    'cycliq-multi': _preprocess_cycliq_multi,
+    'cycliq': _preprocess_cycliq
 }
