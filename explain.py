@@ -170,8 +170,6 @@ def linear_model(data_path: Path,
                  lr: float = typer.Argument(1e-3),
                  lambda_: float = typer.Argument(1e-4)):
 
-    loss_f = F.mse_loss
-
     data = json.load(open(data_path, 'r'))
 
     info = [{} for _ in data]
@@ -181,28 +179,14 @@ def linear_model(data_path: Path,
         for i, d in enumerate(data)
     ]).float()
 
-
-    # if mode == 'classification':
-    #     Y = torch.stack([
-    #         torch.tensor(d['prediction']['class'])
-    #         for d in data
-    #     ])
-
-    # else:
     Y = torch.stack([
         torch.tensor(d['prediction']['output'])
         for d in data
     ])
 
 
-    if mode == 'classification':
-        bin_ = Y.argmax(dim=-1).numpy()
-        assert bin_.mean() in [11/21, 10/21], "Not enough CFS"
-        print("X = ", X.numpy())
-        print("Y = ", bin_)
-    else:
-        print("X = ", X.numpy())
-        print("Y = ", Y.numpy())
+    print("X = ", X.numpy())
+    print("Y = ", Y.numpy() if mode != 'classification' else Y.argmax(dim=-1).numpy())
 
     create_path(output_path)
 
@@ -219,7 +203,7 @@ def linear_model(data_path: Path,
             out = interpretable_model(X).squeeze()
             W = torch.cat([w.flatten() for w in interpretable_model[0].parameters()])
             reg = lambda_ * torch.norm(W, 1)
-            loss = loss_f(out, Y) + reg
+            loss = F.mse_loss(out, Y) + reg
 
             description = f"Loss: {loss.item():.4f}"
 
@@ -254,34 +238,16 @@ def linear_model(data_path: Path,
         print(f"std: {w_abs[c].std()}")
 
     np.save(f"{output_path}/W.npy", weight.detach().numpy())
-    np.save(f"{output_path}/{acc:.2f}.npy", weight.detach().numpy())
+    np.save(f"{output_path}/morgan_envs.npy", np.array(info))
 
     for i, d in enumerate(data):
-        c = d['prediction']['class'] if mode == 'classification' else 0
         mol = mol_from_smiles(d['id'])
-
-        j = weight[c].argmax().item()
-        # h = weight[1-c].argmax().item()
-        h = weight[c].argmin().item()
-        Draw.MolToFile(mol, f"{output_path}/SAMPLE-{i}.svg")
-
-        if j not in info[i]:
-            continue
-
-        for z in range(len(info[i][j])):
-            open(f"{output_path}/SAMPLE-{i}-FEAT-{z}-LABEL-{c}-MAX.expl.svg", "w").write((Draw.DrawMorganBit(mol, j, info[i], whichExample=z, useSVG=True)))
-
-        if h in info[i]:
-            for z in range(len(info[i][h])):
-                open(f"{output_path}/SAMPLE-{i}-FEAT-{z}-LABEL-{c}-MIN.expl.svg", "w").write((Draw.DrawMorganBit(mol, h, info[i], whichExample=z, useSVG=True)))
-
-        np.save(f"{output_path}/SAMPLE-{i}.info.npy", np.array(info[i]))
         d2d = Draw.rdMolDraw2D.MolDraw2DSVG(300,300)
         d2d.drawOptions().addAtomIndices = True
         d2d.DrawMolecule(mol)
         d2d.FinishDrawing()
+        open(f"{output_path}/mol-with-indexes.svg", "w").write(d2d.GetDrawingText())
 
-        open(f"{output_path}/SAMPLE-{i}-with-indexes.svg", "w").write(d2d.GetDrawingText())
 
 
 @app.command(name='contrast')
